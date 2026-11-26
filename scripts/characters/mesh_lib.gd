@@ -24,8 +24,10 @@ static var _cache: Dictionary = {}
 ##      (angle 0 = +X, PI/2 = +Z (back), 3PI/2 = -Z (front)).
 ## shade: vertex brightness at the top and bottom (dirt toward hems).
 ## jag: random lift of the bottom edge (a torn, uneven hem).
-static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0], jag := 0.0, caps := true, stains := 0.0) -> ArrayMesh:
-	var key := "loft|%s|%d|%s|%s|%.4f|%s|%.3f" % [str(sections), segments, str(arc), str(shade), jag, caps, stains]
+## stains: dark blotches (food, wine, mud) scattered over the surface.
+## folds: depth of vertical cloth folds, growing toward the bottom (fraction of radius).
+static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0], jag := 0.0, caps := true, stains := 0.0, folds := 0.0) -> ArrayMesh:
+	var key := "loft|%s|%d|%s|%s|%.4f|%s|%.3f|%.3f" % [str(sections), segments, str(arc), str(shade), jag, caps, stains, folds]
 	if _cache.has(key):
 		return _cache[key]
 	var secs := sections.duplicate()
@@ -48,7 +50,12 @@ static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0]
 			var y: float = s[0]
 			if i == secs.size() - 1 and jag > 0.0:
 				y += (_hash(Vector3(a, 0.0, 1.7)) - 0.35) * jag
-			ring.append(Vector3(cx + cos(a) * s[1], y, cz + sin(a) * s[2]))
+			var r := 1.0
+			if folds > 0.0:
+				var t := 0.0 if absf(y_top - y_bot) < 0.0001 else (y_top - float(s[0])) / (y_top - y_bot)
+				var wave := sin(a * 9.0 + sin(a * 4.0) * 1.2) * 0.65 + sin(a * 17.0 + 1.3) * 0.35
+				r += folds * t * wave
+			ring.append(Vector3(cx + cos(a) * s[1] * r, y, cz + sin(a) * s[2] * r))
 		rings.append(ring)
 
 	var st := SurfaceTool.new()
@@ -259,3 +266,199 @@ static func _hash(p: Vector3) -> float:
 
 static func _blotch(p: Vector3) -> float:
 	return 0.5 + 0.25 * sin(p.x * 1.7 + sin(p.y * 2.3)) * cos(p.z * 1.9 + p.y) + 0.25 * sin(p.y * 3.1 + p.x * 0.7)
+
+
+# --- Furniture and soft goods -------------------------------------------------------
+
+## A box with chamfered edges, centred on the origin. Real timber is never
+## knife-sharp, and the bevels catch the light along every edge.
+static func bevel_box(size: Vector3, bevel := 0.008) -> ArrayMesh:
+	var key := "bevel|%s|%.4f" % [str(size), bevel]
+	if _cache.has(key):
+		return _cache[key]
+	var b := minf(bevel, minf(size.x, minf(size.y, size.z)) * 0.45)
+	var h := size * 0.5
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	# Each face is inset by the bevel; strips fill the edges and triangles the corners.
+	var pts := {}
+	for sx in [-1, 1]:
+		for sy in [-1, 1]:
+			for sz in [-1, 1]:
+				# The corner's vertex on the x, y and z faces: on its own face, pulled
+				# in from the two other faces by the bevel.
+				var i := Vector3(sx * (h.x - b), sy * (h.y - b), sz * (h.z - b))
+				pts[Vector3i(sx, sy, sz)] = [Vector3(sx * h.x, i.y, i.z), Vector3(i.x, sy * h.y, i.z), Vector3(i.x, i.y, sz * h.z)]
+	var white := func(_p: Vector3) -> Color: return Color(1, 1, 1)
+	for axis in 3:
+		for s in [-1, 1]:
+			var quad: Array = []
+			for c in _face_corners(axis, s):
+				var k: Vector3i = c
+				var trio: Array = pts[k]
+				quad.append(trio[axis])
+			_quad(st, quad, axis, s, white)
+	# Edge strips.
+	for axis in 3:
+		var u := (axis + 1) % 3
+		var v := (axis + 2) % 3
+		for su in [-1, 1]:
+			for sv in [-1, 1]:
+				var k0 := Vector3i.ZERO
+				var k1 := Vector3i.ZERO
+				k0[axis] = -1
+				k1[axis] = 1
+				k0[u] = su
+				k1[u] = su
+				k0[v] = sv
+				k1[v] = sv
+				var p0u: Vector3 = pts[k0][u]
+				var p0v: Vector3 = pts[k0][v]
+				var p1u: Vector3 = pts[k1][u]
+				var p1v: Vector3 = pts[k1][v]
+				var out := Vector3.ZERO
+				out[u] = su
+				out[v] = sv
+				_quad_facing(st, [p0u, p0v, p1v, p1u], out, white)
+	# Corner triangles.
+	for k in pts:
+		var kk: Vector3i = k
+		var t: Array = pts[k]
+		_tri_facing(st, t[0], t[1], t[2], Vector3(kk), white)
+	st.generate_normals()
+	var mesh := st.commit()
+	_cache[key] = mesh
+	return mesh
+
+
+## A rounded, softly bulging block: mattresses, cushions, pillows, bolsters.
+## roundness: 0.1 (nearly a box) .. 1.0 (an ellipsoid). sag: dip in the middle of the top.
+static func cushion(size: Vector3, roundness := 0.35, sag := 0.0, lumps := 0.0) -> ArrayMesh:
+	var key := "cushion|%s|%.3f|%.3f|%.3f" % [str(size), roundness, sag, lumps]
+	if _cache.has(key):
+		return _cache[key]
+	var rows := 24
+	var cols := 32
+	var grid: Array = []
+	for i in rows + 1:
+		var theta := PI * float(i) / rows
+		var row: Array = []
+		for j in cols + 1:
+			var phi := TAU * float(j % cols) / cols
+			var d := Vector3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi))
+			var p := Vector3(_spow(d.x, roundness) * size.x * 0.5, _spow(d.y, roundness) * size.y * 0.5, _spow(d.z, roundness) * size.z * 0.5)
+			var cx := p.x / (size.x * 0.5)
+			var cz := p.z / (size.z * 0.5)
+			var centre := clampf(1.0 - (cx * cx + cz * cz) * 0.5, 0.0, 1.0)
+			if p.y > 0.0:
+				p.y -= sag * centre * (p.y / (size.y * 0.5))
+			p.y += lumps * (_hash(Vector3(snappedf(p.x, 0.07), 0, snappedf(p.z, 0.07))) - 0.5) * centre * signf(p.y)
+			row.append([p, p])
+		grid.append(row)
+	var shade := func(p: Vector3) -> Color:
+		var v := 0.9 + _hash(p * 30.0) * 0.1
+		if p.y < 0.0:
+			v *= 0.8
+		return Color(v, v, v)
+	var mesh := _grid_mesh(grid, shade, func(_a: Vector3, _b: Vector3) -> bool: return true)
+	_cache[key] = mesh
+	return mesh
+
+
+## A cloth sheet draped over a block of `size` (centred, top at y = 0): blankets,
+## tablecloths, throws. hang: how far it falls over each side (x-, x+, z-, z+).
+## wrinkle: height of the creases. The sheet is open, so use a two-sided material.
+static func drape(size: Vector2, hang: Vector4, wrinkle := 0.01, rng_seed := 1, thickness := 0.0) -> ArrayMesh:
+	var key := "drape|%s|%s|%.3f|%d|%.3f" % [str(size), str(hang), wrinkle, rng_seed, thickness]
+	if _cache.has(key):
+		return _cache[key]
+	var nx := 40
+	var nz := 30
+	var x0 := -size.x * 0.5 - hang.x
+	var x1 := size.x * 0.5 + hang.y
+	var z0 := -size.y * 0.5 - hang.z
+	var z1 := size.y * 0.5 + hang.w
+	var grid: Array = []
+	var off := Vector3(rng_seed * 3.1, 0, rng_seed * 1.7)
+	for i in nz + 1:
+		var row: Array = []
+		for j in nx + 1:
+			var u := lerpf(x0, x1, float(j) / nx)
+			var w := lerpf(z0, z1, float(i) / nz)
+			var p := Vector3(u, thickness, w)
+			# Fold the parts beyond the block's edges down over its sides.
+			var ox := maxf(absf(u) - size.x * 0.5, 0.0)
+			var oz := maxf(absf(w) - size.y * 0.5, 0.0)
+			var over := maxf(ox, oz)
+			var round_edge := 0.03
+			if ox > 0.0:
+				p.x = signf(u) * (size.x * 0.5 + minf(ox, round_edge) * 0.6 + thickness)
+			if oz > 0.0:
+				p.z = signf(w) * (size.y * 0.5 + minf(oz, round_edge) * 0.6 + thickness)
+			p.y = thickness - over + minf(over, round_edge) * 0.4
+			# Creases: long soft folds, stronger where the cloth hangs.
+			var n := sin(u * 9.0 + off.x + sin(w * 4.0 + off.z) * 1.5) * 0.6 + sin(w * 13.0 + u * 3.0 + off.z) * 0.4
+			var k := wrinkle * (0.35 + clampf(over * 6.0, 0.0, 1.5))
+			if ox > 0.0:
+				p.x += signf(u) * absf(n) * k
+			elif oz > 0.0:
+				p.z += signf(w) * absf(n) * k
+			else:
+				p.y += n * k * 0.5
+			row.append([p, p])
+		grid.append(row)
+	var shade := func(p: Vector3) -> Color:
+		var v := clampf(0.97 + p.y * 1.2, 0.72, 1.0) * (0.95 + _hash(p * 20.0) * 0.05)
+		return Color(v, v, v)
+	# The grid runs +x along a row and +z down the rows; flip it so the top faces up.
+	grid.reverse()
+	var mesh := _grid_mesh(grid, shade, func(_a: Vector3, _b: Vector3) -> bool: return true)
+	_cache[key] = mesh
+	return mesh
+
+
+## A turned (lathe) part such as a bed post, chair leg or finial.
+## profile: [[y, radius], ...].
+static func turned(profile: Array, segments := 14) -> ArrayMesh:
+	var secs: Array = []
+	for pr in profile:
+		secs.append([pr[0], pr[1], pr[1]])
+	return loft(secs, segments)
+
+
+static func _spow(v: float, e: float) -> float:
+	return signf(v) * pow(absf(v), e)
+
+
+static func _face_corners(axis: int, s: int) -> Array:
+	var u := (axis + 1) % 3
+	var v := (axis + 2) % 3
+	var out: Array = []
+	for c in [[-1, -1], [1, -1], [1, 1], [-1, 1]]:
+		var k := Vector3i.ZERO
+		k[axis] = s
+		k[u] = c[0]
+		k[v] = c[1]
+		out.append(k)
+	return out
+
+
+static func _quad(st: SurfaceTool, q: Array, axis: int, s: int, colour: Callable) -> void:
+	var n := Vector3.ZERO
+	n[axis] = s
+	_quad_facing(st, q, n, colour)
+
+
+## Adds a quad wound so its front face points along `out` (clockwise front faces).
+static func _quad_facing(st: SurfaceTool, q: Array, out: Vector3, colour: Callable) -> void:
+	_tri_facing(st, q[0], q[1], q[2], out, colour)
+	_tri_facing(st, q[0], q[2], q[3], out, colour)
+
+
+static func _tri_facing(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, out: Vector3, colour: Callable) -> void:
+	# Godot's front faces wind clockwise, so the cross product of a clockwise
+	# triangle points away from the viewer: flip when it points along `out`.
+	if (b - a).cross(c - a).dot(out) > 0.0:
+		_tri(st, a, c, b, colour)
+	else:
+		_tri(st, a, b, c, colour)
