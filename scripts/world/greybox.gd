@@ -6,8 +6,12 @@ extends RefCounted
 
 const DoorScript := preload("res://scripts/world/door.gd")
 const PropScript := preload("res://scripts/world/prop.gd")
+const FlickerScript := preload("res://scripts/world/flicker_light.gd")
 
 const WALL_THICKNESS := 0.3
+
+static var _flame_material: StandardMaterial3D
+static var _dust_material: StandardMaterial3D
 
 
 static func mat(color: Color, emission_energy := 0.0, metallic := 0.0, roughness := 0.9) -> StandardMaterial3D:
@@ -76,15 +80,129 @@ static func sphere(parent: Node, radius: float, pos: Vector3, material: Material
 	return mi
 
 
-static func light(parent: Node, pos: Vector3, color: Color, energy: float, light_range: float, shadows := false) -> OmniLight3D:
-	var l := OmniLight3D.new()
+## An omni light. flicker > 0 makes it a fire light (see flicker_light.gd).
+## Lights fade out with distance so many shadowed torches stay cheap.
+static func light(parent: Node, pos: Vector3, color: Color, energy: float, light_range: float, shadows := false, flicker := 0.0) -> OmniLight3D:
+	var l: OmniLight3D
+	if flicker > 0.0:
+		var f = FlickerScript.new()
+		f.amount = flicker
+		l = f
+	else:
+		l = OmniLight3D.new()
 	l.position = pos
 	l.light_color = color
 	l.light_energy = energy
 	l.omni_range = light_range
+	l.omni_attenuation = 1.4
 	l.shadow_enabled = shadows
+	l.shadow_bias = 0.05
+	l.distance_fade_enabled = true
+	l.distance_fade_begin = 28.0
+	l.distance_fade_length = 8.0
+	l.distance_fade_shadow = 18.0
 	parent.add_child(l)
 	return l
+
+
+## Small particle fire (torch flames, braziers, the hearth). size scales it.
+static func flame(parent: Node, pos: Vector3, size := 1.0) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.position = pos
+	p.amount = int(14 + 10 * size)
+	p.lifetime = 0.5 + 0.15 * size
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.17, 0.17) * size
+	quad.material = _get_flame_material()
+	p.mesh = quad
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_SPHERE
+	p.emission_sphere_radius = 0.035 * size
+	p.direction = Vector3.UP
+	p.spread = 14.0
+	p.gravity = Vector3(0, 1.3 * size, 0)
+	p.initial_velocity_min = 0.12 * size
+	p.initial_velocity_max = 0.32 * size
+	p.scale_amount_min = 0.7
+	p.scale_amount_max = 1.25
+	var curve := Curve.new()
+	curve.add_point(Vector2(0.0, 0.9))
+	curve.add_point(Vector2(0.25, 1.0))
+	curve.add_point(Vector2(1.0, 0.15))
+	p.scale_amount_curve = curve
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1.0, 0.9, 0.55, 1.0))
+	grad.set_color(1, Color(0.7, 0.12, 0.02, 0.0))
+	grad.add_point(0.35, Color(1.0, 0.5, 0.12, 0.85))
+	p.color_ramp = grad
+	parent.add_child(p)
+	return p
+
+
+## Slow floating dust specks filling a box (catches torch and window light).
+static func dust(parent: Node, center: Vector3, extents: Vector3, amount := 60) -> CPUParticles3D:
+	var p := CPUParticles3D.new()
+	p.position = center
+	p.amount = amount
+	p.lifetime = 9.0
+	p.preprocess = 9.0
+	var quad := QuadMesh.new()
+	quad.size = Vector2(0.012, 0.012)
+	quad.material = _get_dust_material()
+	p.mesh = quad
+	p.emission_shape = CPUParticles3D.EMISSION_SHAPE_BOX
+	p.emission_box_extents = extents
+	p.direction = Vector3.UP
+	p.spread = 180.0
+	p.gravity = Vector3(0, -0.005, 0)
+	p.initial_velocity_min = 0.01
+	p.initial_velocity_max = 0.05
+	var grad := Gradient.new()
+	grad.set_color(0, Color(1, 0.95, 0.85, 0.0))
+	grad.set_color(1, Color(1, 0.95, 0.85, 0.0))
+	grad.add_point(0.5, Color(1, 0.95, 0.85, 0.5))
+	p.color_ramp = grad
+	parent.add_child(p)
+	return p
+
+
+static func _soft_dot() -> GradientTexture2D:
+	var g := Gradient.new()
+	g.set_color(0, Color(1, 1, 1, 1))
+	g.set_color(1, Color(1, 1, 1, 0))
+	var t := GradientTexture2D.new()
+	t.gradient = g
+	t.fill = GradientTexture2D.FILL_RADIAL
+	t.fill_from = Vector2(0.5, 0.5)
+	t.fill_to = Vector2(0.5, 0.0)
+	t.width = 64
+	t.height = 64
+	return t
+
+
+static func _get_flame_material() -> StandardMaterial3D:
+	if _flame_material == null:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		m.vertex_color_use_as_albedo = true
+		m.albedo_texture = _soft_dot()
+		m.disable_receive_shadows = true
+		_flame_material = m
+	return _flame_material
+
+
+static func _get_dust_material() -> StandardMaterial3D:
+	if _dust_material == null:
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		m.vertex_color_use_as_albedo = true
+		m.albedo_texture = _soft_dot()
+		_dust_material = m
+	return _dust_material
 
 
 ## Floor slab (top at y=0) and ceiling slab (bottom at y=height) for a rectangle.
@@ -132,12 +250,17 @@ static func door(parent: Node, hinge: Vector3, along: Vector3, open_into: Vector
 	return d
 
 
-static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, light_range := 9.0) -> void:
-	var holder := mat(Color(0.15, 0.12, 0.1), 0.0, 0.5, 0.6)
-	var flame := mat(Color(1.0, 0.6, 0.2), 6.0)
-	box(parent, Vector3(0.1, 0.5, 0.1), pos + facing * 0.12, holder, false)
-	sphere(parent, 0.1, pos + facing * 0.12 + Vector3(0, 0.32, 0), flame)
-	light(parent, pos + facing * 0.5 + Vector3(0, 0.4, 0), Color(1.0, 0.72, 0.45), energy, light_range)
+## Wall torch: iron bracket, wooden handle, particle flame and a flickering light.
+static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, light_range := 9.0, shadows := true) -> void:
+	var iron := mat(Color(0.12, 0.11, 0.1), 0.0, 0.7, 0.45)
+	var handle := mat(Color(0.3, 0.2, 0.12))
+	box(parent, Vector3(0.14, 0.05, 0.14), pos + facing * 0.06 + Vector3(0, -0.12, 0), iron, false)
+	box(parent, Vector3(0.05, 0.05, 0.05), pos + facing * 0.03, iron, false)
+	var stick := box(parent, Vector3(0.07, 0.5, 0.07), pos + facing * 0.14 + Vector3(0, 0.05, 0), handle, false)
+	stick.rotation = Vector3(facing.z, 0, -facing.x) * 0.25
+	box(parent, Vector3(0.11, 0.1, 0.11), pos + facing * 0.19 + Vector3(0, 0.3, 0), iron, false)
+	flame(parent, pos + facing * 0.2 + Vector3(0, 0.38, 0), 1.0)
+	light(parent, pos + facing * 0.5 + Vector3(0, 0.45, 0), Color(1.0, 0.68, 0.38), energy, light_range, shadows, 0.2)
 
 
 ## Interactable prop with a visible box and matching collision.
