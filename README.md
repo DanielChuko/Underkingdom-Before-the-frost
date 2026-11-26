@@ -45,8 +45,18 @@ scripts/world/           greybox.gd helpers, castle_builder.gd, gate_builder.gd,
 scripts/ui/hud.gd        Prompts, toasts, quest tracker, journal, dialogue box, fades and title cards
 data/dialogue/*.json     Conversations (gate_guard, king_prelude, king_act1) and barks.json
 data/quests.json         Quests and their objectives
+assets/textures/         Generated surface textures (albedo, normal, roughness)
+tools/gen_textures.py    Generates every texture from seeded noise
 tools/validate_data.py   Checks dialogue and quest files (runs in CI)
 ```
+
+## Art
+
+All art is generated, not taken from asset packs or other games.
+
+- **Textures** (stone walls, flagstone, wood planks, dark wood, cloth, plaster, mud, cobbles) come from `tools/gen_textures.py`. Run `pip install numpy pillow` and `python3 tools/gen_textures.py` to rebuild them; change a `seed` to get a different variation. They tile seamlessly and are applied with triplanar mapping in `scripts/world/surfaces.gd`, so any box gets evenly scaled texturing.
+- **Architecture and props** (door frames, pillars, beams, tables, benches, barrels, crates, sacks, shields, rugs, shelves, chandeliers) are assembled from primitives in `scripts/world/decor.gd`.
+- **Fire, dust and light**: particle flames, flickering torch light with shadows, ambient occlusion and a light volumetric haze. A sun beam comes through Casimir's window in Act 1.
 
 ## Writing dialogue
 

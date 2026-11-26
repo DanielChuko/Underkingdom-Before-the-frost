@@ -15,6 +15,8 @@ extends RefCounted
 
 const G := preload("res://scripts/world/greybox.gd")
 const NpcScript := preload("res://scripts/world/npc.gd")
+const S := preload("res://scripts/world/surfaces.gd")
+const D := preload("res://scripts/world/decor.gd")
 
 const CORRIDOR_H := 4.0
 const CORRIDOR_C_H := 5.0
@@ -37,6 +39,7 @@ var wood: Material
 var wood_dark: Material
 var red_cloth: Material
 var gold: Material
+var plaster: Material
 
 
 ## Returns {"root", "spawn_position", "spawn_yaw", "npcs", "hall_trigger", "exit_door"}.
@@ -50,6 +53,8 @@ func build(for_act: int) -> Dictionary:
 	_player_room()
 	_kitchen()
 	_toilet()
+	_architecture()
+	_dressing()
 	_characters()
 
 	var hall_trigger := Area3D.new()
@@ -83,14 +88,15 @@ func build(for_act: int) -> Dictionary:
 
 
 func _materials() -> void:
-	stone = G.mat(Color(0.47, 0.45, 0.42))
-	stone_dark = G.mat(Color(0.3, 0.29, 0.28))
-	floor_mat = G.mat(Color(0.33, 0.3, 0.28))
-	ceiling_mat = G.mat(Color(0.24, 0.22, 0.2))
-	wood = G.mat(Color(0.42, 0.27, 0.15))
-	wood_dark = G.mat(Color(0.26, 0.16, 0.09))
-	red_cloth = G.mat(Color(0.58, 0.07, 0.08))
+	stone = D.stone()
+	stone_dark = S.get_material("stone_wall", Color(0.62, 0.6, 0.58), 1.6)
+	floor_mat = S.get_material("flagstone", Color(0.95, 0.92, 0.88), 3.0)
+	ceiling_mat = S.get_material("wood_dark", Color(0.6, 0.58, 0.56), 2.5)
+	wood = D.wood()
+	wood_dark = D.wood_dark()
+	red_cloth = S.get_material("cloth", Color(0.62, 0.08, 0.09), 0.8)
 	gold = G.mat(Color(0.9, 0.7, 0.25), 0.4, 0.8, 0.35)
+	plaster = S.get_material("plaster", Color.WHITE, 3.0)
 
 
 func _locked(hinge: Vector3, along: Vector3, label := "door") -> void:
@@ -132,7 +138,7 @@ func _corridors() -> void:
 	_locked(Vector3(13.78, 0, -26.4), Vector3(0, 0, -1))
 
 	# Crest above the hall entrance (corridor side).
-	_crest(Vector3(12.5, 4.2, -33.8), 0.9, 0.0)
+	_crest(Vector3(12.5, 4.45, -33.8), 0.85, 0.0)
 
 	# Torches.
 	G.torch(root, Vector3(-1.35, 2.4, -3.0), Vector3(1, 0, 0))
@@ -144,7 +150,7 @@ func _corridors() -> void:
 
 
 func _kings_hall() -> void:
-	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, G.mat(Color(0.36, 0.32, 0.29)), ceiling_mat)
+	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, S.get_material("flagstone", Color(1.0, 0.95, 0.9), 4.0), ceiling_mat)
 	G.wall(root, Vector2(2.35, -34), Vector2(22.65, -34), HALL_H, stone, [[12.5, 3.0, 3.4]])
 	G.wall(root, Vector2(2.35, -58), Vector2(22.65, -58), HALL_H, stone)
 	G.wall(root, Vector2(2.5, -34), Vector2(2.5, -58), HALL_H, stone)
@@ -155,7 +161,7 @@ func _kings_hall() -> void:
 	hall_doors.set_open(true, true)
 
 	# Carpet runner to the throne.
-	G.box(root, Vector3(2.4, 0.02, 21.0), Vector3(12.5, 0.01, -45.0), red_cloth, false)
+	D.rug(root, Vector3(12.5, 0, -45.0), Vector2(2.6, 21.0), Color(0.6, 0.07, 0.08), Color(0.85, 0.62, 0.22))
 
 	# Great crest on the far wall.
 	_crest(Vector3(12.5, 5.8, -57.8), 3.0, 0.0)
@@ -189,22 +195,22 @@ func _kings_hall() -> void:
 	G.box(root, Vector3(0.15, 1.0, 3.85), Vector3(19.075, rise + 0.5, -55.925), wood_dark)
 	_locked(Vector3(20.15, rise, -57.78), Vector3(1, 0, 0))
 
-	# Light: four hanging lamps and two braziers by the throne.
-	for p in [Vector3(7.5, 6.5, -40), Vector3(17.5, 6.5, -40), Vector3(7.5, 6.5, -51), Vector3(17.5, 6.5, -51)]:
-		G.light(root, p, Color(1.0, 0.8, 0.55), 2.4, 15.0)
-		G.cylinder(root, 0.5, 0.15, p + Vector3(0, 0.3, 0), G.mat(Color(0.2, 0.18, 0.16), 0.0, 0.7, 0.5))
-		G.sphere(root, 0.18, p + Vector3(0, 0.45, 0), G.mat(Color(1.0, 0.7, 0.35), 4.0))
+	# Light: two chandeliers and two braziers by the throne.
+	D.chandelier(root, Vector3(12.5, 6.2, -40.0), HALL_H)
+	D.chandelier(root, Vector3(12.5, 6.2, -50.0), HALL_H)
 	for x in [9.5, 15.5]:
 		G.cylinder(root, 0.35, 1.0, Vector3(x, 0.5, -54.5), stone_dark, 0.45)
-		G.sphere(root, 0.3, Vector3(x, 1.1, -54.5), G.mat(Color(1.0, 0.55, 0.2), 5.0))
-		G.light(root, Vector3(x, 1.8, -54.0), Color(1.0, 0.6, 0.3), 2.0, 8.0, true)
+		G.cylinder(root, 0.5, 0.15, Vector3(x, 1.05, -54.5), D.iron(), 0.42)
+		G.sphere(root, 0.22, Vector3(x, 1.08, -54.5), G.mat(Color(1.0, 0.45, 0.12), 3.0))
+		G.flame(root, Vector3(x, 1.15, -54.5), 2.2)
+		G.light(root, Vector3(x, 1.9, -54.0), Color(1.0, 0.6, 0.3), 2.2, 9.0, true, 0.25)
 
 
 func _player_room() -> void:
-	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, G.mat(Color(0.4, 0.3, 0.22)), ceiling_mat)
-	G.wall(root, Vector2(-7.65, -4), Vector2(-1.5, -4), ROOM_H, stone)
-	G.wall(root, Vector2(-7.65, -10), Vector2(-1.5, -10), ROOM_H, stone)
-	G.wall(root, Vector2(-7.5, -4), Vector2(-7.5, -10), ROOM_H, stone)
+	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, S.get_material("wood_floor", Color.WHITE, 2.2), ceiling_mat)
+	G.wall(root, Vector2(-7.65, -4), Vector2(-1.5, -4), ROOM_H, plaster)
+	G.wall(root, Vector2(-7.65, -10), Vector2(-1.5, -10), ROOM_H, plaster)
+	G.wall(root, Vector2(-7.5, -4), Vector2(-7.5, -10), ROOM_H, plaster)
 
 	var room_door = G.door(root, Vector3(-1.5, 0, -6.4), Vector3(0, 0, -1), Vector3(-1, 0, 0), DOOR_W, DOOR_H, wood, "door")
 	room_door.locked = act == 0
@@ -212,9 +218,9 @@ func _player_room() -> void:
 
 	# Bed against the south wall.
 	G.box(root, Vector3(2.0, 0.45, 1.1), Vector3(-6.4, 0.225, -4.75), wood_dark)
-	G.box(root, Vector3(1.9, 0.15, 1.0), Vector3(-6.4, 0.52, -4.75), G.mat(Color(0.88, 0.85, 0.78)), false)
-	G.box(root, Vector3(0.45, 0.12, 0.75), Vector3(-7.1, 0.65, -4.75), G.mat(Color(0.95, 0.95, 0.92)), false)
-	G.box(root, Vector3(1.3, 0.06, 1.04), Vector3(-5.95, 0.61, -4.75), G.mat(Color(0.2, 0.3, 0.5)), false)
+	G.box(root, Vector3(1.9, 0.15, 1.0), Vector3(-6.4, 0.52, -4.75), S.get_material("cloth", Color(0.88, 0.85, 0.78), 0.8), false)
+	G.box(root, Vector3(0.45, 0.12, 0.75), Vector3(-7.1, 0.65, -4.75), S.get_material("cloth", Color(0.95, 0.95, 0.92), 0.8), false)
+	G.box(root, Vector3(1.3, 0.06, 1.04), Vector3(-5.95, 0.61, -4.75), S.get_material("cloth", Color(0.25, 0.33, 0.55), 0.8), false)
 	G.prop(root, Vector3(2.0, 0.7, 1.1), Vector3(-6.4, 0.35, -4.75), null, "Look at the bed", "Your bed. You slept like a stone after the feast.")
 
 	# Window on the west wall: bright daylight.
@@ -223,15 +229,27 @@ func _player_room() -> void:
 	G.box(root, Vector3(0.1, 1.4, 0.08), Vector3(-7.3, 1.9, -7.0), wood_dark, false)
 	G.box(root, Vector3(0.1, 0.08, 1.1), Vector3(-7.3, 1.9, -7.0), wood_dark, false)
 	G.prop(root, Vector3(0.3, 1.3, 1.0), Vector3(-7.2, 1.9, -7.0), null, "Look out the window", "Bright daylight pours in. The sun still shines... for now.")
-	G.light(root, Vector3(-6.6, 2.0, -7.0), Color(0.9, 0.95, 1.0), 1.8 if act >= 1 else 0.4, 7.0)
+	G.light(root, Vector3(-6.6, 2.0, -7.0), Color(0.9, 0.95, 1.0), 1.0 if act >= 1 else 0.3, 6.0)
+	if act >= 1:
+		var sun := SpotLight3D.new()
+		sun.position = Vector3(-7.1, 2.4, -7.0)
+		sun.rotation = Vector3(deg_to_rad(-32.0), deg_to_rad(-90.0), 0)
+		sun.light_color = Color(1.0, 0.95, 0.85)
+		sun.light_energy = 6.0
+		sun.spot_range = 9.0
+		sun.spot_angle = 24.0
+		sun.light_volumetric_fog_energy = 3.0
+		sun.shadow_enabled = true
+		root.add_child(sun)
+		G.dust(root, Vector3(-4.5, 1.6, -7.0), Vector3(2.6, 1.3, 2.6), 90)
 
 	# Writing table with a lit candle, and a chair.
 	G.box(root, Vector3(1.2, 0.06, 0.7), Vector3(-2.6, 0.75, -9.3), wood)
 	for off in [Vector2(-0.5, -0.28), Vector2(0.5, -0.28), Vector2(-0.5, 0.28), Vector2(0.5, 0.28)]:
 		G.box(root, Vector3(0.06, 0.72, 0.06), Vector3(-2.6 + off.x, 0.36, -9.3 + off.y), wood_dark, false)
 	G.cylinder(root, 0.035, 0.2, Vector3(-2.3, 0.88, -9.4), G.mat(Color(0.95, 0.93, 0.85)))
-	G.sphere(root, 0.03, Vector3(-2.3, 1.01, -9.4), G.mat(Color(1.0, 0.75, 0.3), 8.0))
-	G.light(root, Vector3(-2.3, 1.15, -9.2), Color(1.0, 0.75, 0.45), 1.2, 5.0)
+	G.flame(root, Vector3(-2.3, 1.0, -9.4), 0.3)
+	G.light(root, Vector3(-2.3, 1.15, -9.2), Color(1.0, 0.75, 0.45), 1.2, 5.0, true, 0.12)
 	G.box(root, Vector3(0.45, 0.05, 0.45), Vector3(-2.6, 0.45, -8.5), wood)
 	G.box(root, Vector3(0.45, 0.6, 0.05), Vector3(-2.6, 0.75, -8.28), wood)
 
@@ -265,7 +283,7 @@ func _player_room() -> void:
 
 
 func _kitchen() -> void:
-	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, G.mat(Color(0.35, 0.32, 0.3)), ceiling_mat)
+	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, S.get_material("flagstone", Color(0.85, 0.82, 0.78), 2.2), ceiling_mat)
 	G.wall(root, Vector2(1.5, -3), Vector2(9.65, -3), ROOM_H, stone)
 	G.wall(root, Vector2(1.5, -14), Vector2(9.65, -14), ROOM_H, stone)
 	G.wall(root, Vector2(9.5, -3), Vector2(9.5, -14), ROOM_H, stone)
@@ -275,9 +293,7 @@ func _kitchen() -> void:
 	kitchen_door.locked_message = "Locked. You can smell something cooking."
 
 	# Table with a knife stuck in it and a piece of meat.
-	G.box(root, Vector3(2.4, 0.08, 1.2), Vector3(5.5, 0.85, -8.5), wood)
-	for off in [Vector2(-1.1, -0.5), Vector2(1.1, -0.5), Vector2(-1.1, 0.5), Vector2(1.1, 0.5)]:
-		G.box(root, Vector3(0.08, 0.82, 0.08), Vector3(5.5 + off.x, 0.41, -8.5 + off.y), wood_dark, false)
+	D.table(root, Vector3(5.5, 0, -8.5), Vector3(2.4, 0.89, 1.2))
 	var knife := G.box(root, Vector3(0.03, 0.28, 0.06), Vector3(5.0, 1.0, -8.4), G.mat(Color(0.75, 0.77, 0.8), 0.0, 0.9, 0.25), false)
 	knife.rotation.z = 0.25
 	G.box(root, Vector3(0.04, 0.12, 0.05), Vector3(4.97, 1.18, -8.4), wood_dark, false)
@@ -290,7 +306,9 @@ func _kitchen() -> void:
 	G.box(root, Vector3(1.0, 0.25, 0.45), Vector3(5.5, 0.12, -3.5), G.mat(Color(1.0, 0.45, 0.12), 5.0), false)
 	G.box(root, Vector3(0.03, 0.9, 0.03), Vector3(5.5, 1.25, -3.6), G.mat(Color(0.1, 0.1, 0.1)), false)
 	G.cylinder(root, 0.3, 0.4, Vector3(5.5, 0.65, -3.6), G.mat(Color(0.12, 0.12, 0.12), 0.0, 0.7, 0.5), 0.26)
-	G.light(root, Vector3(5.5, 0.9, -4.3), Color(1.0, 0.55, 0.25), 3.0, 9.0, true)
+	G.flame(root, Vector3(5.2, 0.2, -3.5), 2.0)
+	G.flame(root, Vector3(5.8, 0.2, -3.55), 1.8)
+	G.light(root, Vector3(5.5, 0.9, -4.3), Color(1.0, 0.55, 0.25), 3.0, 9.0, true, 0.3)
 
 	# Open cabinet full of vegetables, fruit and meat on the north wall.
 	G.box(root, Vector3(2.4, 2.2, 0.05), Vector3(5.5, 1.1, -13.82), wood_dark, false)
@@ -318,6 +336,89 @@ func _toilet() -> void:
 	G.box(root, Vector3(2.0, 0.5, 0.75), Vector3(4.5, 0.25, -22.5), stone_dark)
 	G.cylinder(root, 0.18, 0.02, Vector3(4.5, 0.51, -22.45), G.mat(Color(0.02, 0.02, 0.02)))
 	G.torch(root, Vector3(5.85, 1.9, -21.0), Vector3(-1, 0, 0), 1.4, 5.0)
+
+
+func _architecture() -> void:
+	var x_axis := Vector3(1, 0, 0)
+	var z_axis := Vector3(0, 0, 1)
+	# Door frames around every doorway (open, locked and barred).
+	D.door_frame(root, Vector3(-1.5, 0, -7.0), z_axis, x_axis, GAP_W, GAP_H)
+	D.door_frame(root, Vector3(1.5, 0, -9.0), z_axis, x_axis, GAP_W, GAP_H)
+	D.door_frame(root, Vector3(4.5, 0, -19.0), x_axis, z_axis, GAP_W, GAP_H)
+	D.door_frame(root, Vector3(12.5, 0, -34.0), x_axis, z_axis, 3.0, 3.4)
+	D.door_frame(root, Vector3(-1.5, 0, -14.0), z_axis, x_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(9.0, 0, -16.0), x_axis, -z_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(11.0, 0, -24.0), z_axis, x_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(11.0, 0, -30.0), z_axis, x_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(14.0, 0, -27.0), z_axis, -x_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(20.75, 3.5, -58.0), x_axis, z_axis, DOOR_W, DOOR_H, false)
+	D.door_frame(root, Vector3(0, 0, 0.0), x_axis, -z_axis, 2.6, 3.2, false)
+	D.door_frame(root, Vector3(0, 0, -19.0), x_axis, z_axis, 2.6, 3.2, false)
+
+	# Ceiling beams.
+	for z in [-2.5, -5.5, -8.5, -11.5, -14.5, -17.5]:
+		D.beam(root, Vector3(0, CORRIDOR_H - 0.14, z), 3.0, "x")
+	for x in [4.0, 7.0, 10.0]:
+		D.beam(root, Vector3(x, CORRIDOR_H - 0.14, -17.5), 3.0, "z")
+	for z in [-21.0, -24.5, -28.0, -31.5]:
+		D.beam(root, Vector3(12.5, CORRIDOR_C_H - 0.14, z), 3.0, "x")
+	for z in [-5.0, -8.0, -11.0, -13.5]:
+		D.beam(root, Vector3(5.5, ROOM_H - 0.14, z), 8.0, "x")
+	for z in [-5.5, -8.5]:
+		D.beam(root, Vector3(-4.5, ROOM_H - 0.14, z), 6.0, "x")
+
+	# The hall: two rows of pillars and heavy roof beams.
+	for z in [-38.0, -44.0, -50.0]:
+		D.pillar(root, Vector3(6.5, 0, z), HALL_H)
+		D.pillar(root, Vector3(18.0, 0, z), HALL_H)
+	for z in [-35.0, -41.0, -47.0, -53.0, -57.0]:
+		G.box(root, Vector3(20.0, 0.5, 0.45), Vector3(12.5, HALL_H - 0.25, z), wood_dark, false)
+	G.torch(root, Vector3(6.9, 2.6, -44.0), Vector3(1, 0, 0), 1.8, 9.0)
+	G.torch(root, Vector3(17.6, 2.6, -44.0), Vector3(-1, 0, 0), 1.8, 9.0)
+	G.dust(root, Vector3(12.5, 3.0, -46.0), Vector3(8.0, 2.5, 10.0), 160)
+
+
+func _dressing() -> void:
+	# Corridor: shields, barrels and crates.
+	D.shield(root, Vector3(-1.35, 2.3, -10.5), Vector3(1, 0, 0), Color(0.45, 0.12, 0.12))
+	D.shield(root, Vector3(1.35, 2.3, -5.0), Vector3(-1, 0, 0), Color(0.2, 0.28, 0.5))
+	D.shield(root, Vector3(11.15, 2.6, -27.0), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
+	D.shield(root, Vector3(13.85, 2.6, -23.5), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+	D.barrel(root, Vector3(-1.0, 0, -0.65))
+	D.barrel(root, Vector3(1.0, 0, -0.7))
+	D.crate(root, Vector3(-1.0, 0, -18.35), 0.6, 0.2)
+	D.crate(root, Vector3(-1.0, 0.6, -18.35), 0.45, -0.3)
+
+	# King's hall: feasting tables with benches, plates and candles.
+	for tx in [8.8, 16.2]:
+		D.table(root, Vector3(tx, 0, -42.0), Vector3(1.0, 0.8, 9.0))
+		D.bench(root, Vector3(tx - 0.75, 0, -42.0), 8.5)
+		D.bench(root, Vector3(tx + 0.75, 0, -42.0), 8.5)
+		for i in 6:
+			var z := -38.5 - i * 1.4
+			G.cylinder(root, 0.13, 0.02, Vector3(tx - 0.25, 0.81, z), D.iron())
+			G.cylinder(root, 0.13, 0.02, Vector3(tx + 0.25, 0.81, z), D.iron())
+			G.cylinder(root, 0.04, 0.14, Vector3(tx + 0.25, 0.89, z + 0.25), gold, 0.05)
+		for z in [-39.0, -45.0]:
+			G.cylinder(root, 0.03, 0.22, Vector3(tx, 0.91, z), G.mat(Color(0.93, 0.9, 0.8)))
+			G.flame(root, Vector3(tx, 1.04, z), 0.3)
+	for z in [-41.0, -47.0]:
+		D.shield(root, Vector3(2.65, 3.2, z), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
+		D.shield(root, Vector3(22.35, 3.4, z), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+
+	# Casimir's room: rug, chest, shelf of books.
+	D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))
+	G.box(root, Vector3(0.5, 0.45, 0.95), Vector3(-5.05, 0.225, -4.75), wood_dark)
+	G.box(root, Vector3(0.52, 0.06, 0.97), Vector3(-5.05, 0.46, -4.75), D.iron(), false)
+	D.shelf(root, Vector3(-2.6, 0.75, -9.85), Vector3(0, 0, 1), 1.2, 2, 7)
+
+	# Kitchen: barrels, sacks, a crate and a shelf of jars.
+	D.barrel(root, Vector3(8.85, 0, -3.7))
+	D.barrel(root, Vector3(8.2, 0, -3.65), 0.75)
+	D.sack(root, Vector3(8.9, 0, -13.35))
+	D.sack(root, Vector3(8.35, 0, -13.45), Color(0.68, 0.6, 0.45))
+	D.crate(root, Vector3(2.15, 0, -13.3), 0.7, 0.15)
+	D.shelf(root, Vector3(1.65, 0.6, -5.5), Vector3(1, 0, 0), 1.6, 2, 11)
 
 
 func _characters() -> void:

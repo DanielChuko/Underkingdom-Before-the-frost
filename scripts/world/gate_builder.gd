@@ -5,23 +5,26 @@ extends RefCounted
 
 const G := preload("res://scripts/world/greybox.gd")
 const NpcScript := preload("res://scripts/world/npc.gd")
+const S := preload("res://scripts/world/surfaces.gd")
+const D := preload("res://scripts/world/decor.gd")
 
 
 ## Returns {"root", "camera", "guard"}.
 func build() -> Dictionary:
 	var root := Node3D.new()
 	root.name = "Gate"
-	var mud := G.mat(Color(0.3, 0.23, 0.15))
-	var road := G.mat(Color(0.42, 0.34, 0.24))
-	var stone := G.mat(Color(0.52, 0.5, 0.46))
-	var wood := G.mat(Color(0.3, 0.19, 0.1))
-	var iron := G.mat(Color(0.15, 0.15, 0.16), 0.0, 0.7, 0.5)
-	var red := G.mat(Color(0.58, 0.07, 0.08))
+	var mud := S.get_material("mud", Color.WHITE, 5.0)
+	var road := S.get_material("cobbles", Color(0.95, 0.92, 0.88), 2.5)
+	var stone := S.get_material("stone_wall", Color.WHITE, 3.0)
+	var wood := S.get_material("wood_dark", Color.WHITE, 2.0, false)
+	var iron := D.iron()
+	var red := S.get_material("cloth", Color(0.62, 0.08, 0.09), 1.0)
 	var leaf := G.mat(Color(0.2, 0.36, 0.18))
 	var bark := G.mat(Color(0.3, 0.22, 0.14))
 
 	G.box(root, Vector3(140, 0.2, 140), Vector3(0, -0.1, 0), mud)
-	G.box(root, Vector3(4.0, 0.04, 60.0), Vector3(0, 0.01, 24.0), road, false)
+	G.box(root, Vector3(4.6, 0.04, 60.0), Vector3(0, 0.01, 24.0), road, false)
+	G.box(root, Vector3(5.6, 0.03, 60.0), Vector3(0, 0.005, 24.0), S.get_material("mud", Color(0.8, 0.75, 0.7), 2.0), false)
 
 	# City wall with the gate opening, two flanking towers and crenellations.
 	G.box(root, Vector3(38.0, 7.0, 2.0), Vector3(-21.2, 3.5, -6.0), stone)
@@ -44,8 +47,11 @@ func build() -> Dictionary:
 	G.box(root, Vector3(0.06, 4.9, 0.34), Vector3(0, 2.45, -5.4), iron, false)
 	for y in [1.0, 2.6, 4.2]:
 		G.box(root, Vector3(4.3, 0.14, 0.36), Vector3(0, y, -5.4), iron, false)
-	G.torch(root, Vector3(-2.6, 3.0, -4.95), Vector3(0, 0, 1), 1.2, 6.0)
-	G.torch(root, Vector3(2.6, 3.0, -4.95), Vector3(0, 0, 1), 1.2, 6.0)
+	G.torch(root, Vector3(-2.6, 3.0, -4.95), Vector3(0, 0, 1), 1.2, 6.0, false)
+	G.torch(root, Vector3(2.6, 3.0, -4.95), Vector3(0, 0, 1), 1.2, 6.0, false)
+	D.barrel(root, Vector3(-3.0, 0, -3.55))
+	D.crate(root, Vector3(-3.3, 0, -2.6), 0.7, 0.4)
+	D.sack(root, Vector3(3.3, 0, -3.6))
 
 	# A few trees along the road outside the walls.
 	var trees := [Vector2(-9, 4), Vector2(-13, 12), Vector2(-8, 20), Vector2(10, 6), Vector2(14, 15), Vector2(9, 24), Vector2(-18, 2), Vector2(19, 3)]

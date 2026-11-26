@@ -134,19 +134,36 @@ func _give_control() -> void:
 func _use_interior_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color(0.02, 0.02, 0.03)
+	env.background_color = Color(0.01, 0.01, 0.015)
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.6, 0.55, 0.5)
-	env.ambient_light_energy = 0.35 if GameState.act == 0 else 0.5
+	env.ambient_light_color = Color(0.55, 0.5, 0.48)
+	env.ambient_light_energy = 0.18 if GameState.act == 0 else 0.28
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.tonemap_exposure = 1.1
 	env.glow_enabled = true
+	env.glow_intensity = 0.6
+	env.glow_bloom = 0.05
+	env.ssao_enabled = true
+	env.ssao_radius = 1.2
+	env.ssao_intensity = 2.2
+	env.ssil_enabled = true
+	env.ssil_intensity = 0.8
+	# Light haze: torches glow in the air and the window casts a light shaft.
+	env.volumetric_fog_enabled = true
+	env.volumetric_fog_density = 0.018
+	env.volumetric_fog_albedo = Color(0.85, 0.8, 0.75)
+	env.volumetric_fog_length = 40.0
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.05
+	env.adjustment_contrast = 1.05
 	world_env.environment = env
 
 
 func _use_exterior_environment() -> void:
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color(0.32, 0.45, 0.65)
-	sky_mat.sky_horizon_color = Color(0.75, 0.72, 0.68)
+	sky_mat.sky_top_color = Color(0.3, 0.44, 0.66)
+	sky_mat.sky_horizon_color = Color(0.78, 0.74, 0.68)
+	sky_mat.ground_horizon_color = Color(0.5, 0.45, 0.4)
 	var sky := Sky.new()
 	sky.sky_material = sky_mat
 	var env := Environment.new()
@@ -154,8 +171,11 @@ func _use_exterior_environment() -> void:
 	env.sky = sky
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	env.ssao_enabled = true
+	env.glow_enabled = true
 	env.fog_enabled = true
-	env.fog_density = 0.008
+	env.fog_light_color = Color(0.7, 0.72, 0.75)
+	env.fog_density = 0.006
 	world_env.environment = env
 
 
