@@ -1,0 +1,36 @@
+{
+  "_comment": "Character looks. Colours are hex. beard: none | stubble | mustache | full | long. headwear: none | helmet | crown | chef_hat. sleeves: cloth | metal | rolled. Optional layers: tabard, robe, cape, collar, apron, belly, weapon (spear). gesture_arm: which hand gestures while talking.",
+  "guard": {
+    "skin": "#d6a587", "hair": "#3b2a1e", "beard": "stubble",
+    "shirt": "#6f7178", "sleeves": "metal",
+    "tabard": "#26396b", "emblem": "#e0b44a",
+    "trousers": "#3a2e24", "boots": "#2a1d14", "belt": "#4a3322",
+    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+  },
+  "guard_patrol": {
+    "skin": "#b98466", "hair": "#5a3b22", "beard": "full",
+    "shirt": "#6f7178", "sleeves": "metal",
+    "tabard": "#26396b", "emblem": "#e0b44a",
+    "trousers": "#33291f", "boots": "#2a1d14", "belt": "#4a3322",
+    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+  },
+  "gate_guard": {
+    "skin": "#e0b096", "hair": "#2b2118", "beard": "mustache",
+    "shirt": "#6f7178", "sleeves": "metal",
+    "tabard": "#26396b", "emblem": "#e0b44a",
+    "trousers": "#3a2e24", "boots": "#2a1d14", "belt": "#4a3322",
+    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+  },
+  "king": {
+    "skin": "#e2b59a", "hair": "#cfcac2", "beard": "long",
+    "shirt": "#4a1d5c", "robe": "#4a1d5c", "cape": "#8a1418", "collar": "#ece6da",
+    "trousers": "#4a1d5c", "boots": "#3a1f1a", "belt": "#d9a83a",
+    "headwear": "crown", "gesture_arm": "right"
+  },
+  "cook": {
+    "skin": "#e8a98c", "hair": "#6b4a2f", "beard": "mustache",
+    "shirt": "#d9d2c0", "sleeves": "rolled", "apron": "#f2efe6", "belly": true,
+    "trousers": "#4b3b2e", "boots": "#2e2219", "belt": "#5a4230",
+    "headwear": "chef_hat", "gesture_arm": "right"
+  }
+}

@@ -4,17 +4,32 @@ extends CharacterBody3D
 ## Optional patrol between points; pauses while any dialogue is running.
 
 var display_name := "Stranger"
+## Name used by dialogue lines (defaults to display_name). The character
+## animates talking while a line from this speaker is on screen.
+var speaker_name := ""
+## The Humanoid rig (scripts/characters/humanoid.gd), set by greybox.npc().
+var body
 var dialogue_id := ""
 var done_flag := ""
 var bark_key := ""
 var patrol_points: Array = []
 var patrol_speed := 1.3
-var seated := false
+var seated := false:
+	set(value):
+		seated = value
+		if body != null:
+			body.pose = "sit" if value else "stand"
 
 var _bark_index := 0
 var _patrol_index := 0
 var _wait := 0.0
 var _scripted := false
+var _last_position := Vector3.ZERO
+
+
+func _ready() -> void:
+	_last_position = global_position
+	Dialogue.line_shown.connect(_on_line_shown)
 
 
 func get_prompt() -> String:
@@ -65,7 +80,19 @@ func walk_to(target: Vector3, final_yaw: float, speed := 1.2) -> void:
 	_scripted = false
 
 
+func _on_line_shown(line: Dictionary) -> void:
+	var who := speaker_name if speaker_name != "" else display_name
+	if body != null and str(line.get("speaker", "")) == who:
+		body.speak(str(line.get("text", "")).length() / 55.0 + 0.4)
+
+
 func _physics_process(delta: float) -> void:
+	# Feed the rig our real ground speed so patrols and scripted walks animate.
+	if body != null and delta > 0.0:
+		var moved := global_position - _last_position
+		moved.y = 0.0
+		body.speed = lerpf(body.speed, moved.length() / delta, 0.5)
+	_last_position = global_position
 	if patrol_points.is_empty() or _scripted:
 		return
 	if Dialogue.is_active():

@@ -20,6 +20,9 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIALOGUE_DIR = ROOT / "data" / "dialogue"
 QUESTS = ROOT / "data" / "quests.json"
+CHARACTERS = ROOT / "data" / "characters.json"
+COLOR_KEYS = {"skin", "hair", "shirt", "tabard", "emblem", "trousers", "boots", "belt",
+              "robe", "cape", "collar", "apron"}
 
 errors: list[str] = []
 raised_events: set[str] = set()
@@ -120,6 +123,22 @@ def check_quests() -> set[str]:
     return waited
 
 
+def check_characters() -> None:
+    import re
+    data = json.loads(CHARACTERS.read_text(encoding="utf-8"))
+    for cid, look in data.items():
+        if cid.startswith("_"):
+            continue
+        for key, value in look.items():
+            if key in COLOR_KEYS and not re.fullmatch(r"#[0-9a-fA-F]{6}", str(value)):
+                err(f"characters.json:{cid}.{key}: '{value}' is not a #rrggbb colour")
+    used = set()
+    for script in (ROOT / "scripts").rglob("*.gd"):
+        used.update(re.findall(r'G\.npc\([^\n]*"([a-z_]+)"\)', script.read_text(encoding="utf-8")))
+    for cid in sorted(used - set(data)):
+        err(f"scripts use character look '{cid}' which is missing from characters.json")
+
+
 def main() -> int:
     for path in sorted(DIALOGUE_DIR.glob("*.json")):
         if path.name == "barks.json":
@@ -127,6 +146,7 @@ def main() -> int:
         else:
             check_dialogue(path)
     waited = check_quests()
+    check_characters()
     for e in sorted(waited - raised_events):
         print(f"info: quest event '{e}' is not raised by any dialogue (game code or future content)")
     if errors:

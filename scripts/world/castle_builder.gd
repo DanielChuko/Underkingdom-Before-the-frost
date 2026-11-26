@@ -423,12 +423,12 @@ func _dressing() -> void:
 
 func _characters() -> void:
 	# Guard 1 stands by the hall doors.
-	var guard_hall = G.npc(root, NpcScript, "Guard", Vector3(13.3, 0, -32.6), PI, Color(0.25, 0.32, 0.5), "helmet")
+	var guard_hall = G.npc(root, NpcScript, "Guard", Vector3(13.3, 0, -32.6), PI, "guard")
 	guard_hall.bark_key = "guard_hall"
 	npcs["guard_hall"] = guard_hall
 
 	# Guard 2 patrols the winding corridor.
-	var guard_patrol = G.npc(root, NpcScript, "Guard", Vector3(0, 0, -4.0), 0.0, Color(0.25, 0.32, 0.5), "helmet")
+	var guard_patrol = G.npc(root, NpcScript, "Guard", Vector3(0, 0, -4.0), 0.0, "guard_patrol")
 	guard_patrol.bark_key = "guard_patrol"
 	guard_patrol.patrol_points = [
 		Vector3(0, 0, -4.0), Vector3(0, 0, -17.5), Vector3(12.5, 0, -17.5),
@@ -439,18 +439,17 @@ func _characters() -> void:
 	var king
 	if act == 0:
 		# Prelude: the king stands in the middle of his hall.
-		king = G.npc(root, NpcScript, "King", Vector3(12.5, 0, -46.0), PI, Color(0.35, 0.15, 0.45), "crown")
+		king = G.npc(root, NpcScript, "King", Vector3(12.5, 0, -46.0), PI, "king")
 		king.dialogue_id = "king_prelude"
 	else:
 		# Act 1: the king sits on his throne under the crest.
-		king = G.npc(root, NpcScript, "King", Vector3(12.5, 0.4, -55.6), PI, Color(0.35, 0.15, 0.45), "crown")
+		king = G.npc(root, NpcScript, "King", Vector3(12.5, 0.4, -55.95), PI, "king")
 		king.seated = true
-		king.get_node("Visual").position.y = -0.45
 		king.dialogue_id = "king_act1"
 		king.done_flag = "act1_briefed"
 		king.bark_key = "king_after_briefing"
 
-		var cook = G.npc(root, NpcScript, "Cook", Vector3(3.2, 0, -5.5), 0.0, Color(0.7, 0.66, 0.6), "cook")
+		var cook = G.npc(root, NpcScript, "Cook", Vector3(3.2, 0, -5.5), 0.0, "cook")
 		cook.bark_key = "cook"
 		cook.patrol_speed = 0.9
 		cook.patrol_points = [Vector3(3.2, 0, -5.5), Vector3(7.8, 0, -5.5), Vector3(7.8, 0, -11.8), Vector3(3.2, 0, -11.8)]
