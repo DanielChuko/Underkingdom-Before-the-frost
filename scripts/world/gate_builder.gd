@@ -70,7 +70,8 @@ func build() -> Dictionary:
 	var guard_pos := Vector3(1.8, 0, -3.4)
 	var cam_pos := Vector3(0, 1.65, 5.0)
 	var to_cam := cam_pos - guard_pos
-	var guard = G.npc(root, NpcScript, "Gate Guard", guard_pos, atan2(-to_cam.x, -to_cam.z), Color(0.25, 0.32, 0.5), "helmet")
+	var guard = G.npc(root, NpcScript, "Gate Guard", guard_pos, atan2(-to_cam.x, -to_cam.z), "gate_guard")
+	guard.speaker_name = "Guard"
 
 	var cam := Camera3D.new()
 	cam.position = cam_pos

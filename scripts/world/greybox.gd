@@ -7,6 +7,7 @@ extends RefCounted
 const DoorScript := preload("res://scripts/world/door.gd")
 const PropScript := preload("res://scripts/world/prop.gd")
 const FlickerScript := preload("res://scripts/world/flicker_light.gd")
+const HumanoidScript := preload("res://scripts/characters/humanoid.gd")
 
 const WALL_THICKNESS := 0.3
 
@@ -281,43 +282,19 @@ static func prop(parent: Node, size: Vector3, pos: Vector3, material: Material, 
 	return p
 
 
-## Greybox character: capsule body, head, a "nose" showing which way it faces
-## (local -Z), plus an optional accessory: "helmet", "crown" or "cook".
-static func npc(parent: Node, script: Script, display_name: String, pos: Vector3, yaw: float, body_color: Color, accessory := "") -> CharacterBody3D:
+## A character: an NPC body (script) dressed and animated by the Humanoid rig
+## using a look from res://data/characters.json. Faces local -Z.
+static func npc(parent: Node, script: Script, display_name: String, pos: Vector3, yaw: float, look_id: String) -> CharacterBody3D:
 	var n = script.new()
 	n.display_name = display_name
 	n.position = pos
 	n.rotation.y = yaw
 	parent.add_child(n)
-
-	var vis := Node3D.new()
-	vis.name = "Visual"
-	n.add_child(vis)
-	var skin := mat(Color(0.85, 0.68, 0.55))
-	var body := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = 0.3
-	cap.height = 1.5
-	body.mesh = cap
-	body.material_override = mat(body_color)
-	body.position.y = 0.75
-	vis.add_child(body)
-	sphere(vis, 0.2, Vector3(0, 1.62, 0), skin)
-	box(vis, Vector3(0.06, 0.07, 0.1), Vector3(0, 1.62, -0.22), skin, false)
-
-	match accessory:
-		"helmet":
-			var steel := mat(Color(0.6, 0.62, 0.66), 0.0, 0.8, 0.35)
-			cylinder(vis, 0.22, 0.2, Vector3(0, 1.78, 0), steel)
-			box(vis, Vector3(0.05, 2.3, 0.05), Vector3(0.42, 1.15, -0.05), mat(Color(0.35, 0.25, 0.15)), false)
-			box(vis, Vector3(0.12, 0.25, 0.04), Vector3(0.42, 2.38, -0.05), steel, false)
-		"crown":
-			cylinder(vis, 0.17, 0.16, Vector3(0, 1.86, 0), mat(Color(0.95, 0.75, 0.25), 0.6, 0.9, 0.3))
-			box(vis, Vector3(0.7, 1.3, 0.05), Vector3(0, 0.95, 0.3), mat(Color(0.55, 0.08, 0.1)), false)
-		"cook":
-			var white := mat(Color(0.95, 0.95, 0.92))
-			cylinder(vis, 0.16, 0.3, Vector3(0, 1.9, 0), white, 0.2)
-			box(vis, Vector3(0.5, 0.8, 0.05), Vector3(0, 0.75, -0.31), white, false)
+	var body = HumanoidScript.new()
+	body.name = "Body"
+	n.add_child(body)
+	body.build(look_id)
+	n.body = body
 
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.35
