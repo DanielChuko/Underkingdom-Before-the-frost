@@ -1,5 +1,5 @@
 {
-  "_comment": "Character looks, modelled on 13th-14th century garrison kit. Colours are hex and describe the worn, faded colour the surface should read as. torso: wool | chainmail | quilted (gambeson). sleeves: cloth | mail | quilted | rolled. beard: none | stubble | mustache | full | long. headwear: none | coif (mail) | helmet (coif + nasal helm) | kettle_hat (coif + broad-brimmed iron hat) | crown | cap. Optional layers: hauberk (mail skirt), gambeson (quilted skirt; colour), surcoat (+ emblem), robe, cape, collar (fur mantle; also the robe's hem trim), apron, belly, gloves, pouch, sword (on the left hip), weapon (spear). ruddy: 0-1 redness of nose and cheeks. slouch: forward lean in radians. gesture_arm: which hand gestures while talking.",
+  "_comment": "Character looks, modelled on 13th-14th century garrison kit. Colours are hex and describe the worn, faded colour the surface should read as. torso: wool | chainmail | quilted (gambeson). sleeves: cloth | mail | quilted | rolled. beard: none | stubble | mustache | full | long. headwear: none | coif (mail) | helmet (coif + nasal helm) | kettle_hat (coif + broad-brimmed iron hat) | crown | cap. Optional layers: hauberk (mail skirt), gambeson (quilted skirt; colour), surcoat (+ emblem), robe, cape, collar (fur mantle; also the robe's hem trim), apron, belly, gloves, pouch, sword (on the left hip), weapon (spear). face: painted face texture (weathered | scarred | old | ruddy, from tools/gen_faces.py). device: painted surcoat front (surcoat_sun). belt_width: metres; wide belts get a hanging strap end. mittens: mail mittens. coif_lining: colour of the padded cap edge around a coif's face opening. ruddy: 0-1 redness of nose and cheeks. slouch: forward lean in radians. gesture_arm: which hand gestures while talking.",
   "guard": {
     "skin": "#a87a62",
     "hair": "#2e241c",
@@ -11,18 +11,20 @@
     "mail": "#8e8a84",
     "sleeves": "mail",
     "hauberk": true,
-    "surcoat": "#2c3446",
-    "emblem": "#7d6a3e",
-    "gloves": "#33261c",
+    "surcoat": "#c9c1b0",
     "trousers": "#3a3128",
     "boots": "#2a1f17",
-    "belt": "#33261c",
-    "helmet": "#b8b0a4",
-    "headwear": "helmet",
+    "belt": "#5a3f28",
+    "headwear": "coif",
     "weapon": "spear",
     "slouch": 0.06,
     "gesture_arm": "left",
-    "sword": true
+    "sword": true,
+    "face": "weathered",
+    "device": "surcoat_sun",
+    "mittens": true,
+    "belt_width": 0.07,
+    "coif_lining": "#7a2a22"
   },
   "guard_patrol": {
     "skin": "#946a55",
@@ -45,7 +47,10 @@
     "gesture_arm": "left",
     "gambeson": "#8f8571",
     "mail": "#87827b",
-    "sword": true
+    "sword": true,
+    "face": "scarred",
+    "belt_width": 0.065,
+    "coif_lining": "#5e3a2a"
   },
   "gate_guard": {
     "skin": "#b38469",
@@ -57,18 +62,22 @@
     "shirt": "#978c76",
     "mail": "#8a8680",
     "sleeves": "quilted",
-    "surcoat": "#2a3142",
-    "emblem": "#7a683d",
+    "surcoat": "#c4bcaa",
     "gloves": "#33261c",
     "trousers": "#3a3128",
     "boots": "#2a1f17",
-    "belt": "#33261c",
-    "headwear": "coif",
+    "belt": "#4e3622",
+    "headwear": "helmet",
     "weapon": "spear",
     "slouch": 0.1,
     "gesture_arm": "left",
     "gambeson": "#978c76",
-    "sword": true
+    "sword": true,
+    "face": "weathered",
+    "device": "surcoat_sun",
+    "helmet": "#aaa296",
+    "belt_width": 0.07,
+    "coif_lining": "#6e2620"
   },
   "king": {
     "skin": "#b89078",
@@ -86,7 +95,8 @@
     "crown": "#8f7338",
     "headwear": "crown",
     "slouch": 0.1,
-    "gesture_arm": "right"
+    "gesture_arm": "right",
+    "face": "old"
   },
   "cook": {
     "skin": "#b8846a",
@@ -104,6 +114,7 @@
     "cap": "#b3aa95",
     "headwear": "cap",
     "pouch": true,
-    "gesture_arm": "right"
+    "gesture_arm": "right",
+    "face": "ruddy"
   }
 }

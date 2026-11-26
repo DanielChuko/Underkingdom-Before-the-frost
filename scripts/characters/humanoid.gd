@@ -130,13 +130,15 @@ func _build_body() -> void:
 	var trousers := _mat("wool", _c("trousers", "#3a3128"))
 	var boots := _mat("leather", _c("boots", "#2a1f17"))
 	var gloves := skin
-	if look.has("gloves"):
+	if look.has("mittens"):
+		gloves = _mat("chainmail", _c("mail", "#9a9690"), 0.8)
+	elif look.has("gloves"):
 		gloves = _mat("leather", _c("gloves", "#3a2a1e"))
 	var upper_mat := torso_mat
 	var fore_mat := torso_mat
 	match str(look.get("sleeves", "cloth")):
 		"mail":
-			upper_mat = _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+			upper_mat = _mat("chainmail", _c("mail", "#9a9690"), 1.0)
 			fore_mat = upper_mat
 		"rolled":
 			fore_mat = skin
@@ -224,7 +226,12 @@ func _build_head() -> void:
 	var skin_col := _c("skin", "#b88a70")
 	var face := _joint(head, Vector3(0, 0.095, -0.005))
 	var beard := str(look.get("beard", "none"))
-	_mesh(face, M.head(beard == "stubble", float(look.get("ruddy", 0.3))), _mat("skin", skin_col, 1.0, 0.0, 0.25))
+	var face_tex := str(look.get("face", ""))
+	if face_tex != "":
+		# A painted face: brows, creases, lips and stubble are in the texture.
+		_mesh(face, M.head(false, 0.1), _face_mat(face_tex, skin_col))
+	else:
+		_mesh(face, M.head(beard == "stubble", float(look.get("ruddy", 0.3))), _mat("skin", skin_col, 1.0, 0.0, 0.25))
 
 	# Ears, eyes, brows.
 	var plain_skin := _mat("skin", skin_col, 1.0, 0.0, 0.25, false)
@@ -242,8 +249,9 @@ func _build_head() -> void:
 		# Heavy upper lid, half-closing the eye: weary, not wide-eyed.
 		var lid := P.ellipsoid(face, c + Vector3(0, 0.009, -0.0015), Vector3(0.0138, 0.0075, 0.0133), plain_skin)
 		lid.rotation.x = -0.25
-		var brow := P.ellipsoid(face, M.face_point(x * 1.08, 0.033, 0.003), Vector3(0.019, 0.0045, 0.006), brow_mat)
-		brow.rotation.z = signf(x) * -0.12
+		if face_tex == "":
+			var brow := P.ellipsoid(face, M.face_point(x * 1.08, 0.033, 0.003), Vector3(0.019, 0.0045, 0.006), brow_mat)
+			brow.rotation.z = signf(x) * -0.12
 	# A dark gap between the lips that opens while talking.
 	mouth = _joint(face, M.face_point(0.0, -0.0545, -0.0015))
 	P.ellipsoid(mouth, Vector3.ZERO, Vector3(0.019, 0.0016, 0.006), P.m(Color(0.16, 0.07, 0.06), 0.5))
@@ -282,8 +290,10 @@ func _build_head() -> void:
 
 
 func _build_mail_hood(face: Node3D, headwear: String) -> void:
-	var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+	var mail := _mat("chainmail", _c("mail", "#9a9690"), 1.0)
 	_mesh(face, M.shell("coif", 0.006), mail)
+	# The padded arming cap under the mail shows as a rolled edge around the face.
+	_mesh(face, M.shell("coif_lining", 0.009), _mat("quilted", _c("coif_lining", "#7a2a22"), 0.4))
 	# Mail mantle over the shoulders.
 	_mesh(chest, M.loft([[0.37, 0.06, 0.065], [0.31, 0.08, 0.08], [0.26, 0.17, 0.11], [0.2, 0.23, 0.13], [0.14, 0.22, 0.135]], 20, [], [1.0, 0.85], 0.02), mail)
 	if headwear == "coif":
@@ -323,7 +333,7 @@ func _build_costume() -> void:
 		_mesh(pelvis, M.loft([[0.14, 0.18, 0.125], [-0.0, 0.19, 0.132]], 20, [], [1.0, 1.0], 0.0, false), quilt)
 		waist = 0.19
 	if look.has("hauberk"):
-		var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+		var mail := _mat("chainmail", _c("mail", "#9a9690"), 1.0)
 		var skirt := [[0.0, 0.175, 0.122], [-0.18, 0.19, 0.135], [-0.34, 0.2, 0.145]]
 		front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
 		back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
@@ -333,7 +343,12 @@ func _build_costume() -> void:
 	if look.has("surcoat"):
 		var coat := _mat("wool", _c("surcoat", "#2c3446"))
 		var body := [[0.255, 0.16, 0.118], [0.18, 0.207, 0.123], [0.1, 0.2, 0.127], [0.0, 0.183, 0.12], [-0.16, 0.17, 0.12]]
-		_mesh(chest, M.loft(body, 10, [PI + 0.55, TAU - 0.55], [1.0, 0.9], 0.0, false, 0.25), coat, true)
+		var device := str(look.get("device", ""))
+		if device != "":
+			# The livery's device is painted onto the front panel's cloth.
+			_mesh(chest, M.loft(body, 16, [PI + 0.55, TAU - 0.55], [1.0, 0.9], 0.0, false, 0.15, 0.0, true), _painted_mat(device, true), false)
+		else:
+			_mesh(chest, M.loft(body, 10, [PI + 0.55, TAU - 0.55], [1.0, 0.9], 0.0, false, 0.25), coat, true)
 		_mesh(chest, M.loft(body, 10, [0.55, PI - 0.55], [1.0, 0.9], 0.0, false, 0.25), coat, true)
 		var hang := [[0.0, 0.2, 0.135], [-0.25, 0.215, 0.15], [-0.52, 0.225, 0.158]]
 		if front_panel == null:
@@ -376,9 +391,29 @@ func _build_costume() -> void:
 		front_panel = _joint(pelvis, Vector3(0, 0.12, 0))
 		var skirt := [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.62, 0.22, 0.155]]
 		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7, 0.05), apron, true)
-	# Belt and buckle.
-	_mesh(pelvis, M.loft([[belt_y + 0.025, waist + 0.008, waist * 0.7 + 0.01], [belt_y - 0.02, waist + 0.01, waist * 0.7 + 0.012]], 20), belt)
-	P.ellipsoid(pelvis, Vector3(0, belt_y, -waist * 0.7 - 0.016), Vector3(0.02, 0.022, 0.006), _mat("rust_metal", Color(0.75, 0.7, 0.62), 1.0, 0.7, 0.0, false))
+	# Belt, buckle and the long strap end hanging down the front.
+	var bw := float(look.get("belt_width", 0.045))
+	var bz := waist * 0.7 + 0.011
+	_mesh(pelvis, M.loft([[belt_y + bw * 0.5, waist + 0.008, bz - 0.001], [belt_y - bw * 0.5, waist + 0.01, bz + 0.001]], 24, [], [1.0, 0.85]), belt)
+	var buckle_mat := _mat("rust_metal", Color(0.72, 0.66, 0.56), 1.0, 0.7, 0.0, false)
+	var buckle := _joint(pelvis, Vector3(0.02, belt_y, -bz - 0.006))
+	var bh := bw + 0.016
+	for sx in [-1.0, 1.0]:
+		var side_bar := _mesh(buckle, M.bevel_box(Vector3(0.008, bh, 0.008), 0.002), buckle_mat)
+		side_bar.position = Vector3(sx * 0.024, 0, 0)
+		var end_bar := _mesh(buckle, M.bevel_box(Vector3(0.056, 0.008, 0.008), 0.002), buckle_mat)
+		end_bar.position = Vector3(0, sx * bh * 0.5, 0)
+	var pin := _mesh(buckle, M.bevel_box(Vector3(0.006, bh * 0.9, 0.006), 0.002), buckle_mat)
+	pin.position = Vector3(-0.004, 0, -0.003)
+	if bw > 0.05:
+		# The strap end passes through the buckle and hangs, swinging with the cloth.
+		var tongue_parent: Node3D = front_panel if front_panel != null else pelvis
+		var tongue := _joint(tongue_parent, Vector3(0.045, belt_y + (0.02 if front_panel != null else 0.0) - bw * 0.3, -waist * 0.72 - 0.035))
+		tongue.rotation = Vector3(-0.08, 0.0, 0.08)
+		var strap := _mesh(tongue, M.bevel_box(Vector3(bw * 0.8, 0.34, 0.006), 0.002), belt)
+		strap.position = Vector3(0, -0.17, 0)
+		var tip := _mesh(tongue, M.bevel_box(Vector3(bw * 0.8 + 0.004, 0.035, 0.009), 0.002), buckle_mat)
+		tip.position = Vector3(0, -0.33, 0)
 	if look.has("pouch"):
 		P.ellipsoid(pelvis, Vector3(0.14, belt_y - 0.06, -0.08), Vector3(0.04, 0.05, 0.025), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
 	if str(look.get("weapon", "")) == "spear":
@@ -561,6 +596,46 @@ func _mesh(parent: Node, mesh: Mesh, material: Material, two_sided := false) -> 
 	mi.material_override = material
 	parent.add_child(mi)
 	return mi
+
+
+## A painted face texture (tools/gen_faces.py), tinted by the skin colour.
+func _face_mat(face_name: String, skin_col: Color) -> StandardMaterial3D:
+	var key := "face|%s|%s" % [face_name, skin_col.to_html()]
+	if _materials.has(key):
+		return _materials[key]
+	var m := _painted_mat("face_" + face_name, false).duplicate() as StandardMaterial3D
+	m.albedo_color = Color(minf(skin_col.r / 0.86, 1.0), minf(skin_col.g / 0.82, 1.0), minf(skin_col.b / 0.79, 1.0))
+	m.vertex_color_use_as_albedo = true
+	m.subsurf_scatter_enabled = true
+	m.subsurf_scatter_strength = 0.25
+	m.rim_enabled = true
+	m.rim = 0.12
+	m.rim_tint = 0.6
+	_materials[key] = m
+	return m
+
+
+## A UV-mapped material from res://assets/textures/<texture_name>_*.png.
+func _painted_mat(texture_name: String, two_sided: bool) -> StandardMaterial3D:
+	var key := "painted|%s|%s" % [texture_name, two_sided]
+	if _materials.has(key):
+		return _materials[key]
+	var m := StandardMaterial3D.new()
+	var dir := "res://assets/textures/" + texture_name
+	if ResourceLoader.exists(dir + "_albedo.png"):
+		m.albedo_texture = load(dir + "_albedo.png")
+	if ResourceLoader.exists(dir + "_normal.png"):
+		m.normal_enabled = true
+		m.normal_texture = load(dir + "_normal.png")
+	if ResourceLoader.exists(dir + "_rough.png"):
+		m.roughness_texture = load(dir + "_rough.png")
+		m.roughness_texture_channel = BaseMaterial3D.TEXTURE_CHANNEL_GRAYSCALE
+	m.vertex_color_use_as_albedo = true
+	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	if two_sided:
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+	_materials[key] = m
+	return m
 
 
 func _two_sided_mat(material: Material) -> Material:

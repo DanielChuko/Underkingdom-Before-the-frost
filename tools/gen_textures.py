@@ -401,6 +401,40 @@ def quilted(seed=17):
     save("quilted", albedo, height, 0.92 + weave * 0.05, 0.35)
 
 
+def surcoat_sun(seed=18):
+    """Front panel of the garrison's livery surcoat (not tileable; mapped by UV):
+    faded off-white wool bearing the kingdom's device in red, a sun with long
+    rays rising over a peak, cracked and worn, grimy toward the hem."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float) / SIZE
+    threads = 110
+    weave = 0.5 + 0.25 * np.sin(xx * threads * 2 * np.pi) + 0.25 * np.sin(yy * threads * 2 * np.pi)
+    slub = fractal_noise(rng, beta=1.6, stretch=(1.0, 25.0))
+    dirt = fractal_noise(rng, beta=2.6)
+    wear = fractal_noise(rng, beta=1.2)
+    # The device, in panel coordinates (u across, v down).
+    cx, cy = 0.5, 0.36
+    dx, dy = (xx - cx) * 1.15, yy - cy
+    r = np.hypot(dx, dy)
+    ang = np.arctan2(dy, dx)
+    disc = r < 0.085
+    rays = (np.cos(ang * 16) > 0.45) & (r > 0.105) & (r < 0.2) & (dy < -0.01)
+    # A peak below the sun, its snowcap left the colour of the cloth.
+    inside = (yy > 0.5 + np.abs(xx - 0.5) * 1.25) & (yy < 0.9)
+    snow = (yy < 0.6 + np.abs(xx - 0.5) * 0.4) & (yy > 0.5 + np.abs(xx - 0.5) * 1.25 + 0.025)
+    device = ((disc | rays | inside) & ~snow).astype(float)
+    # Soften the edges a little and let the paint flake where the cloth is worn.
+    device = np.clip(device - np.clip(wear - 0.72, 0, 1) * 3.0, 0, 1)
+    base = np.array([0.86, 0.83, 0.76])
+    red = np.array([0.62, 0.1, 0.08])
+    lum = 1.0 + (weave - 0.5) * 0.08 + (slub - 0.5) * 0.12
+    lum -= np.clip(dirt - 0.5, 0, 1) * 0.6 + yy ** 3 * 0.35
+    col = base[None, None, :] * (1 - device[..., None]) + red[None, None, :] * device[..., None]
+    col *= lum[..., None]
+    height = weave * 3.0 + slub * 2.0 + device * 1.5
+    save("surcoat_sun", col, height, 0.93 - device * 0.08, 0.2)
+
+
 if __name__ == "__main__":
     stone_wall()
     flagstone()
@@ -417,3 +451,4 @@ if __name__ == "__main__":
     rust_metal()
     fur()
     quilted()
+    surcoat_sun()
