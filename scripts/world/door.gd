@@ -1,22 +1,31 @@
 extends Node3D
 ## A hinged door with one or two leaves. Built by greybox.gd's door().
 ## Locked doors only show a message; unlocked ones swing open and shut.
+## With use_prompt set, the door instead emits `used` (e.g. "Leave the castle").
+
+signal used
 
 var label := "door"
 var locked := false
 var locked_message := "It's locked."
 var is_open := false
+var use_prompt := ""
 ## Each leaf: {"node": Node3D pivot, "closed": yaw, "open": yaw}
 var leaves: Array = []
 
 
 func get_prompt() -> String:
+	if use_prompt != "":
+		return "[E] " + use_prompt
 	if locked:
 		return "[E] Try the %s" % label
 	return "[E] %s the %s" % ["Close" if is_open else "Open", label]
 
 
 func interact(_player: Node) -> void:
+	if use_prompt != "":
+		used.emit()
+		return
 	if locked:
 		GameState.toast(locked_message)
 		return

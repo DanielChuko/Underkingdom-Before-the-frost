@@ -3,7 +3,7 @@ extends Node3D
 ##   Prelude: gate (fixed camera) -> guard dialogue -> castle corridor (player
 ##   control) -> king's hall -> king dialogue -> title card
 ##   Act 1:   "Two months later" -> wake in Casimir's room -> roam the castle ->
-##   king's briefing -> leave through the kitchen -> end of slice.
+##   king's briefing -> leave through the entrance doors -> end of slice.
 
 const HudScript := preload("res://scripts/ui/hud.gd")
 const PlayerScript := preload("res://scripts/player/player.gd")

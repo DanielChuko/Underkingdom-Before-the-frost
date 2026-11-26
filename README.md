@@ -29,7 +29,7 @@ This repository currently holds the **prelude vertical slice**, built in
 2. **Castle corridor.** You take control inside the castle. The corridor winds twice past locked doors; one guard patrols it, another stands by the open doors to the king's hall. Both have one-liners.
 3. **King's hall.** The king stands in the middle of the hall under the kingdom's crest, between red banners, with a staircase to a landing. The full prelude conversation plays, with the king walking to the crest and turning back.
 4. **Title.** Fade to *Underkingdom: Before the Frost*, then a bright "Two months later" card.
-5. **Act 1.** Casimir wakes in his room (bed, daylight window, candle-lit table and chair, mirror, a blooming flower, a painting of a snowy mountain). The room, kitchen (with the cook) and toilet room open; every other door stays locked. The king, now on his throne, gives the goblin briefing. Leaving through the kitchen's outer door ends the slice.
+5. **Act 1.** Casimir wakes in his room (bed, daylight window, candle-lit table and chair, mirror, a blooming flower, a painting of a snowy mountain). The room, kitchen (with the cook) and toilet room open; every other door stays locked. The king, now on his throne, gives the goblin briefing. Leaving through the entrance doors, where the prelude began, ends the slice.
 
 A quest tracker in the top-right corner follows "The Grave Message" and then "Trouble at the Dig".
 
