@@ -26,8 +26,9 @@ static var _cache: Dictionary = {}
 ## jag: random lift of the bottom edge (a torn, uneven hem).
 ## stains: dark blotches (food, wine, mud) scattered over the surface.
 ## folds: depth of vertical cloth folds, growing toward the bottom (fraction of radius).
-static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0], jag := 0.0, caps := true, stains := 0.0, folds := 0.0) -> ArrayMesh:
-	var key := "loft|%s|%d|%s|%s|%.4f|%s|%.3f|%.3f" % [str(sections), segments, str(arc), str(shade), jag, caps, stains, folds]
+## uvs: add UVs (u across the arc, v down from the top) for painted textures.
+static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0], jag := 0.0, caps := true, stains := 0.0, folds := 0.0, uvs := false) -> ArrayMesh:
+	var key := "loft|%s|%d|%s|%s|%.4f|%s|%.3f|%.3f|%s" % [str(sections), segments, str(arc), str(shade), jag, caps, stains, folds, uvs]
 	if _cache.has(key):
 		return _cache[key]
 	var secs := sections.duplicate()
@@ -55,11 +56,14 @@ static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0]
 				var t := 0.0 if absf(y_top - y_bot) < 0.0001 else (y_top - float(s[0])) / (y_top - y_bot)
 				var wave := sin(a * 9.0 + sin(a * 4.0) * 1.2) * 0.65 + sin(a * 17.0 + 1.3) * 0.35
 				r += folds * t * wave
-			ring.append(Vector3(cx + cos(a) * s[1] * r, y, cz + sin(a) * s[2] * r))
+			var pt := Vector3(cx + cos(a) * s[1] * r, y, cz + sin(a) * s[2] * r)
+			if uvs:
+				var tv := 0.0 if absf(y_top - y_bot) < 0.0001 else (y_top - float(s[0])) / (y_top - y_bot)
+				ring.append([pt, pt, Vector2(float(j) / segments, tv)])
+			else:
+				ring.append(pt)
 		rings.append(ring)
 
-	var st := SurfaceTool.new()
-	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	var colour := func(p: Vector3) -> Color:
 		var t := 0.0 if absf(y_top - y_bot) < 0.0001 else clampf((y_top - p.y) / (y_top - y_bot), 0.0, 1.0)
 		var v := lerpf(float(shade[0]), float(shade[1]), t * t) * (0.94 + _hash(p) * 0.12)
@@ -67,6 +71,13 @@ static func loft(sections: Array, segments := 16, arc := [], shade := [1.0, 1.0]
 			var blot := _blotch(p * 9.0)
 			v *= 1.0 - stains * clampf((blot - 0.55) * 4.0, 0.0, 1.0)
 		return Color(v, v * (1.0 - (1.0 - v) * 0.08), v * (1.0 - (1.0 - v) * 0.15))
+	if uvs:
+		# Painted panels: emitted as a UV grid (open, no caps).
+		var uv_mesh := _grid_mesh(rings, colour, func(_p: Vector3, _q: Vector3) -> bool: return true)
+		_cache[key] = uv_mesh
+		return uv_mesh
+	var st := SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
 	for i in rings.size() - 1:
 		for j in segments:
 			var a: Vector3 = rings[i][j]
@@ -161,8 +172,9 @@ static func shell(kind: String, thickness := 0.012) -> ArrayMesh:
 			"helmet":
 				return base.y > 0.032
 			"coif":
-				var face := base.z < -0.015 and absf(base.x) < 0.053 and base.y > -0.08 and base.y < 0.048
-				return not face and base.y > -0.11
+				return not _face_opening(base, 0.0) and base.y > -0.11
+			"coif_lining":
+				return _face_opening(base, 0.0) and not _face_opening(base, 0.008)
 			"beard", "long_beard":
 				var lips := absf(base.x) < 0.024 and base.y > -0.064 and base.y < -0.04
 				return base.y < -0.022 + j and base.z < 0.03 and not lips and base.y < 0.0
@@ -208,7 +220,7 @@ static func _head_grid(thickness: float, kind := "") -> Array:
 				p += d * k2 * 0.01
 			elif kind == "helmet":
 				p += d * 0.006
-			row.append([p, base])
+			row.append([p, base, Vector2(float(j) / HEAD_COLS, float(i) / HEAD_ROWS)])
 		grid.append(row)
 	return grid
 
@@ -227,13 +239,26 @@ static func _grid_mesh(grid: Array, colour: Callable, mask: Callable) -> ArrayMe
 			if not mask.call(mid, mid):
 				continue
 			any = true
-			_tri(st, a[0], d[0], c[0], colour)
-			_tri(st, a[0], c[0], b[0], colour)
+			if a.size() > 2:
+				_tri_uv(st, [a, d, c], colour)
+				_tri_uv(st, [a, c, b], colour)
+			else:
+				_tri(st, a[0], d[0], c[0], colour)
+				_tri(st, a[0], c[0], b[0], colour)
 	if not any:
 		return ArrayMesh.new()
 	st.index()
 	st.generate_normals()
+	if grid[0][0].size() > 2:
+		st.generate_tangents()
 	return st.commit()
+
+
+static func _tri_uv(st: SurfaceTool, verts: Array, colour: Callable) -> void:
+	for v in verts:
+		st.set_color(colour.call(v[0]))
+		st.set_uv(v[2])
+		st.add_vertex(v[0])
 
 
 static func _tri(st: SurfaceTool, a: Vector3, b: Vector3, c: Vector3, colour: Callable) -> void:
@@ -253,6 +278,13 @@ static func _bump(p: Vector3, cx: float, cy: float, sx: float, sy: float, amount
 	var dx := (p.x - cx) / sx
 	var dy := (p.y - cy) / sy
 	return amount * exp(-dx * dx - dy * dy)
+
+
+## The oval left open by a mail coif. inset shrinks it.
+static func _face_opening(p: Vector3, inset: float) -> bool:
+	var ex := (p.x) / (0.053 - inset)
+	var ey := (p.y + 0.016) / (0.064 - inset)
+	return p.z < -0.015 and ex * ex + ey * ey < 1.0
 
 
 static func _ear_gap(p: Vector3) -> bool:
