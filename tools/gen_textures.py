@@ -89,6 +89,7 @@ def save(name, albedo, height, rough, normal_strength):
     Image.fromarray((rgb * 255).astype(np.uint8), "RGB").save(OUT / f"{name}_albedo.png", optimize=True)
     nrm = normal_from_height(height, normal_strength)
     Image.fromarray((nrm * 255).astype(np.uint8), "RGB").save(OUT / f"{name}_normal.png", optimize=True)
+    rough = np.broadcast_to(np.asarray(rough, dtype=float), height.shape)
     Image.fromarray((np.clip(rough, 0, 1) * 255).astype(np.uint8), "L").save(OUT / f"{name}_rough.png", optimize=True)
     print("wrote", name)
 
@@ -274,6 +275,109 @@ def cobbles(seed=8):
     save("cobbles", albedo, height * 40.0, np.where(gap, 1.0, 0.75), 0.08)
 
 
+# --- Character surfaces ------------------------------------------------------------
+
+def chainmail(seed=11):
+    """Interlocking riveted rings: rows offset by half a ring."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float)
+    rings = 32  # rings across the texture
+    cell = SIZE / rings
+    height = np.zeros((SIZE, SIZE))
+    for oy, ox in ((0.0, 0.0), (0.5, 0.5)):
+        gy = (yy / cell - oy) % 1.0 - 0.5
+        gx = (xx / cell - ox) % 1.0 - 0.5
+        r = np.sqrt(gx * gx + gy * gy * 1.3)
+        ring = np.clip(1.0 - np.abs(r - 0.33) / 0.2, 0, 1)
+        height = np.maximum(height, np.sqrt(ring))
+    grime = fractal_noise(rng, beta=2.0)
+    rust = np.clip((band_noise(rng, 4, 20) - 0.62) * 4.0, 0, 1)
+    gap = height < 0.05
+    steel = 0.55 + height * 0.35 - grime * 0.2
+    albedo = tint(steel, (0.62, 0.62, 0.64))
+    albedo = albedo * (1 - rust[..., None] * 0.6) + tint(rust, (0.45, 0.25, 0.12)) * 0.6
+    albedo = np.where(gap[..., None], tint(np.full((SIZE, SIZE), 0.12), (1, 1, 1)), albedo)
+    rough = np.where(gap, 1.0, 0.45 + grime * 0.3 + rust * 0.3)
+    save("chainmail", albedo, height * 14.0, rough, 0.25)
+
+
+def leather(seed=12):
+    rng = np.random.default_rng(seed)
+    ids, edge = periodic_voronoi(rng, 400, jitter=1.0)
+    coarse = fractal_noise(rng, beta=2.4)
+    fine = band_noise(rng, 90, 256)
+    scuff = np.clip((band_noise(rng, 6, 30) - 0.6) * 4.0, 0, 1)
+    crease = 1.0 - np.clip(edge / 3.0, 0, 1)
+    lum = 0.55 + (coarse - 0.5) * 0.3 - crease * 0.06 + (fine - 0.5) * 0.06 + scuff * 0.2
+    albedo = tint(lum, (0.55, 0.4, 0.28))
+    height = coarse * 0.5 - crease * 0.4 + fine * 0.1
+    save("leather", albedo, height * 12.0, 0.6 + crease * 0.2 - scuff * 0.15, 0.12)
+
+
+def wool(seed=13):
+    """Coarse, uneven homespun weave with slubs and grime (tinted per material)."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float)
+    threads = 96
+    jit_x = (fractal_noise(rng, beta=2.0, stretch=(1.0, 20.0)) - 0.5) * 1.2
+    jit_y = (fractal_noise(rng, beta=2.0, stretch=(20.0, 1.0)) - 0.5) * 1.2
+    warp = 0.5 + 0.5 * np.sin((xx / SIZE * threads + jit_x) * 2 * np.pi)
+    weft = 0.5 + 0.5 * np.sin((yy / SIZE * threads + jit_y) * 2 * np.pi)
+    checker = (np.floor(xx / SIZE * threads * 2) + np.floor(yy / SIZE * threads * 2)) % 2
+    weave = np.where(checker > 0, warp, weft)
+    slub = fractal_noise(rng, beta=1.6, stretch=(1.0, 30.0))
+    dirt = fractal_noise(rng, beta=2.8)
+    fuzz = band_noise(rng, 120, 256)
+    lum = 0.7 + (weave - 0.5) * 0.25 + (slub - 0.5) * 0.18 - np.clip(dirt - 0.55, 0, 1) * 0.6 + (fuzz - 0.5) * 0.08
+    albedo = tint(lum, (1.0, 0.97, 0.92))
+    save("wool", albedo, (weave * 0.7 + slub * 0.3) * 8.0, 0.95 + fuzz * 0.05, 0.2)
+
+
+def skin(seed=14):
+    rng = np.random.default_rng(seed)
+    blotch = fractal_noise(rng, beta=2.6)
+    pores = band_noise(rng, 150, 256)
+    freckle = np.clip((band_noise(rng, 30, 80) - 0.7) * 5.0, 0, 1)
+    lum = 0.88 + (blotch - 0.5) * 0.14 - (pores - 0.5) * 0.05
+    albedo = np.stack([lum, lum * (0.97 - (blotch - 0.5) * 0.06), lum * 0.95], axis=-1)
+    albedo -= freckle[..., None] * np.array([0.12, 0.16, 0.18])
+    save("skin", albedo, blotch * 2.0 - pores * 1.5, 0.55 + pores * 0.15, 0.3)
+
+
+def rust_metal(seed=15):
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float)
+    scratches = np.zeros((SIZE, SIZE))
+    for _ in range(90):
+        a = rng.uniform(0, np.pi)
+        cx, cy = rng.uniform(0, SIZE, 2)
+        length = rng.uniform(8, 50)
+        dx = (xx - cx + SIZE / 2) % SIZE - SIZE / 2
+        dy = (yy - cy + SIZE / 2) % SIZE - SIZE / 2
+        along = dx * np.cos(a) + dy * np.sin(a)
+        across = -dx * np.sin(a) + dy * np.cos(a)
+        scratches = np.maximum(scratches, np.clip(1 - np.abs(across) / 0.8, 0, 1) * (np.abs(along) < length))
+    rust_n = fractal_noise(rng, beta=2.2)
+    pits = band_noise(rng, 60, 200)
+    rust = np.clip((rust_n - 0.55) * 3.5, 0, 1)
+    steel = 0.5 + scratches * 0.1 + (pits - 0.5) * 0.08
+    albedo = tint(steel, (0.6, 0.6, 0.62))
+    rust_col = np.stack([0.42 + pits * 0.1, 0.22 + pits * 0.06, 0.1 + pits * 0.03], axis=-1)
+    albedo = albedo * (1 - rust[..., None]) + rust_col * rust[..., None]
+    rough = 0.35 + rust * 0.55 - scratches * 0.1
+    save("rust_metal", albedo, rust * 0.6 + pits * 0.3 - scratches * 0.4, rough, 0.1)
+
+
+def fur(seed=16):
+    rng = np.random.default_rng(seed)
+    strands = fractal_noise(rng, beta=1.4, stretch=(1.0, 25.0))
+    clumps = fractal_noise(rng, beta=2.5)
+    tips = band_noise(rng, 100, 256)
+    lum = 0.55 + (strands - 0.5) * 0.5 + (clumps - 0.5) * 0.25 + (tips - 0.5) * 0.1
+    albedo = tint(lum, (1.0, 0.96, 0.9))
+    save("fur", albedo, strands * 6.0 + clumps * 4.0, 0.95, 0.25)
+
+
 if __name__ == "__main__":
     stone_wall()
     flagstone()
@@ -283,3 +387,9 @@ if __name__ == "__main__":
     plaster()
     mud()
     cobbles()
+    chainmail()
+    leather()
+    wool()
+    skin()
+    rust_metal()
+    fur()

@@ -2,24 +2,44 @@ extends Node3D
 ## A procedurally built, procedurally animated humanoid.
 ##
 ## The body is a small joint hierarchy (pelvis, chest, neck, head, shoulders,
-## elbows, hips, knees) with primitive meshes hung off each joint, dressed from
-## a "look" in res://data/characters.json. Everything faces local -Z.
+## elbows, hips, knees). Each joint carries smooth meshes lofted in code by
+## mesh_lib.gd: a sculpted head and face, a shaped torso, tapering limbs, hands
+## and boots. Clothing is layered on top (mail, surcoats, robes, aprons, fur),
+## dressed from a "look" in res://data/characters.json and textured with the
+## generated character textures. Vertex colours add grime toward hems and boots,
+## stains, and skin shading. Everything faces local -Z.
 ##
 ## Animation is computed every frame instead of using keyframes:
-##   - walk cycle driven by `speed` (metres per second, set by the owner)
-##   - idle breathing and weight shift
+##   - a heavy, tired walk cycle driven by `speed` (metres per second)
+##   - idle breathing, slouch and weight shift
 ##   - "sit" pose for the king's throne
-##   - talking: mouth movement, head nods and a hand gesture (speak())
-##   - the head turns to look at the camera when it is close
+##   - talking: mouth movement, small nods and a restrained hand gesture
+##   - the head slowly turns to look at the camera when it is close
 
 const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
+const P := preload("res://scripts/world/props.gd")
+const M := preload("res://scripts/characters/mesh_lib.gd")
 const LOOKS_PATH := "res://data/characters.json"
 
 const HIP_HEIGHT := 0.93
-const STRIDE := 1.5  # metres per full walk cycle (two steps)
+const STRIDE := 1.35  # metres per full walk cycle (two steps)
+
+## Average albedo of each generated texture, so a look's colour comes out as
+## that colour once the texture is multiplied in.
+const TEXTURE_MEAN := {
+	"chainmail": Color(0.41, 0.41, 0.41), "leather": Color(0.29, 0.21, 0.15),
+	"wool": Color(0.68, 0.66, 0.63), "skin": Color(0.87, 0.85, 0.83),
+	"rust_metal": Color(0.31, 0.3, 0.3), "fur": Color(0.55, 0.53, 0.5),
+	"cloth": Color(0.78, 0.78, 0.78),
+}
+const TEXTURE_TILE := {
+	"chainmail": 0.12, "leather": 0.35, "wool": 0.3, "skin": 0.25,
+	"rust_metal": 0.3, "fur": 0.25, "cloth": 0.4,
+}
 
 static var _looks: Dictionary = {}
+static var _materials: Dictionary = {}
 
 ## "stand" or "sit"
 var pose := "stand"
@@ -54,6 +74,8 @@ var _talk := 0.0
 var _head_yaw := 0.0
 var _head_pitch := 0.0
 var _gesture := 0.0
+var _slouch := 0.0
+var _belly := false
 
 
 static func load_look(look_id: String) -> Dictionary:
@@ -73,61 +95,26 @@ static func load_look(look_id: String) -> Dictionary:
 func build(look_id: String) -> void:
 	look = load_look(look_id)
 	_time = randf() * 10.0
-	var skin := _skin(_c("skin", "#d6a587"))
-	var shirt := _cloth(_c("shirt", "#8a7a66"))
-	var trousers := _cloth(_c("trousers", "#3a2e24"))
-	var boots := _leather(_c("boots", "#2a1d14"))
-	var sleeve_mat: Material = shirt
-	var forearm_mat: Material = shirt
-	match str(look.get("sleeves", "cloth")):
-		"metal":
-			sleeve_mat = _metal(_c("shirt", "#6f7178"))
-			forearm_mat = sleeve_mat
-		"rolled":
-			forearm_mat = skin
+	_slouch = float(look.get("slouch", 0.0))
+	_belly = bool(look.get("belly", false))
 
 	# --- Skeleton -------------------------------------------------------------
 	pelvis = _joint(self, Vector3(0, HIP_HEIGHT + 0.02, 0))
 	chest = _joint(pelvis, Vector3(0, 0.28, 0))
 	neck = _joint(chest, Vector3(0, 0.25, 0))
 	head = _joint(neck, Vector3(0, 0.09, 0))
-	l_shoulder = _joint(chest, Vector3(-0.215, 0.19, 0))
-	r_shoulder = _joint(chest, Vector3(0.215, 0.19, 0))
+	l_shoulder = _joint(chest, Vector3(-0.2, 0.19, 0))
+	r_shoulder = _joint(chest, Vector3(0.2, 0.19, 0))
 	l_elbow = _joint(l_shoulder, Vector3(0, -0.29, 0))
 	r_elbow = _joint(r_shoulder, Vector3(0, -0.29, 0))
-	l_hip = _joint(pelvis, Vector3(-0.1, -0.02, 0))
-	r_hip = _joint(pelvis, Vector3(0.1, -0.02, 0))
+	l_hip = _joint(pelvis, Vector3(-0.095, -0.02, 0))
+	r_hip = _joint(pelvis, Vector3(0.095, -0.02, 0))
 	l_knee = _joint(l_hip, Vector3(0, -0.44, 0))
 	r_knee = _joint(r_hip, Vector3(0, -0.44, 0))
 
-	# --- Body -------------------------------------------------------------------
-	G.box(pelvis, Vector3(0.32, 0.18, 0.21), Vector3(0, 0.0, 0), trousers, false)
-	var torso := G.cylinder(chest, 0.17, 0.56, Vector3(0, -0.03, 0), shirt, 0.205)
-	torso.scale = Vector3(1, 1, 0.64)
-	G.box(pelvis, Vector3(0.34, 0.06, 0.23), Vector3(0, 0.1, 0), _leather(_c("belt", "#4a3322")), false)
-	G.sphere(chest, 0.075, Vector3(-0.2, 0.19, 0), sleeve_mat)
-	G.sphere(chest, 0.075, Vector3(0.2, 0.19, 0), sleeve_mat)
-	if bool(look.get("belly", false)):
-		var belly := G.sphere(chest, 0.2, Vector3(0, -0.13, -0.05), shirt)
-		belly.scale = Vector3(1.0, 0.9, 0.85)
-
-	G.cylinder(neck, 0.055, 0.12, Vector3(0, 0.03, 0), skin)
-	for side in [-1.0, 1.0]:
-		var shoulder: Node3D = l_shoulder if side < 0 else r_shoulder
-		var elbow: Node3D = l_elbow if side < 0 else r_elbow
-		_capsule(shoulder, 0.058, 0.32, Vector3(0, -0.14, 0), sleeve_mat)
-		_capsule(elbow, 0.05, 0.28, Vector3(0, -0.13, 0), forearm_mat)
-		var hand := G.sphere(elbow, 0.052, Vector3(0, -0.29, -0.01), skin)
-		hand.scale = Vector3(0.8, 1.1, 0.9)
-		var hip: Node3D = l_hip if side < 0 else r_hip
-		var knee: Node3D = l_knee if side < 0 else r_knee
-		_capsule(hip, 0.078, 0.48, Vector3(0, -0.21, 0), trousers)
-		_capsule(knee, 0.062, 0.3, Vector3(0, -0.12, 0), trousers)
-		_capsule(knee, 0.066, 0.26, Vector3(0, -0.3, 0), boots)
-		G.box(knee, Vector3(0.11, 0.07, 0.25), Vector3(0, -0.43, -0.05), boots, false)
-
-	_build_head(skin)
-	_build_layers()
+	_build_body()
+	_build_head()
+	_build_costume()
 
 
 ## Starts the talking animation for `duration` seconds.
@@ -135,13 +122,247 @@ func speak(duration: float) -> void:
 	_talk = maxf(_talk, duration)
 
 
+# --- Body ---------------------------------------------------------------------------
+
+func _build_body() -> void:
+	var skin := _mat("skin", _c("skin", "#b88a70"))
+	var torso_mat := _mat(str(look.get("torso", "wool")), _c("shirt", "#8a8070"))
+	var trousers := _mat("wool", _c("trousers", "#3a3128"))
+	var boots := _mat("leather", _c("boots", "#2a1f17"))
+	var gloves := skin
+	if look.has("gloves"):
+		gloves = _mat("leather", _c("gloves", "#3a2a1e"))
+	var upper_mat := torso_mat
+	var fore_mat := torso_mat
+	match str(look.get("sleeves", "cloth")):
+		"mail":
+			upper_mat = _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+			fore_mat = upper_mat
+		"rolled":
+			fore_mat = skin
+
+	# Pelvis and hips, in trousers.
+	_mesh(pelvis, M.loft([[0.13, 0.15, 0.1], [0.04, 0.168, 0.112], [-0.06, 0.17, 0.112], [-0.12, 0.13, 0.1]], 18, [], [0.9, 0.75]), trousers)
+	# Torso from the waist to the base of the neck.
+	var torso: Array = [[-0.16, 0.15, 0.1], [-0.08, 0.152, 0.1], [0.0, 0.165, 0.104], [0.1, 0.183, 0.11],
+		[0.18, 0.192, 0.105], [0.235, 0.17, 0.088], [0.27, 0.1, 0.07], [0.31, 0.055, 0.055]]
+	if _belly:
+		torso = [[-0.16, 0.16, 0.12, 0.0, -0.02], [-0.08, 0.185, 0.155, 0.0, -0.045], [0.0, 0.19, 0.15, 0.0, -0.04],
+			[0.1, 0.19, 0.125, 0.0, -0.015], [0.18, 0.195, 0.108], [0.235, 0.17, 0.09], [0.27, 0.1, 0.07], [0.31, 0.055, 0.055]]
+	_mesh(chest, M.loft(torso, 20), torso_mat)
+	_mesh(neck, M.loft([[-0.04, 0.052, 0.055], [0.04, 0.047, 0.05], [0.12, 0.045, 0.048, 0.0, 0.005]], 12), skin)
+
+	for side in [-1.0, 1.0]:
+		var shoulder: Node3D = l_shoulder if side < 0 else r_shoulder
+		var elbow: Node3D = l_elbow if side < 0 else r_elbow
+		var hip: Node3D = l_hip if side < 0 else r_hip
+		var knee: Node3D = l_knee if side < 0 else r_knee
+		# Shoulder cap, upper arm and forearm.
+		_mesh(shoulder, M.loft([[0.065, 0.03, 0.035], [0.035, 0.062, 0.068], [-0.02, 0.064, 0.068],
+			[-0.12, 0.056, 0.06], [-0.22, 0.047, 0.05], [-0.31, 0.04, 0.043]], 14), upper_mat)
+		var fore: Array = [[0.03, 0.04, 0.042], [-0.07, 0.046, 0.048, 0.0, 0.004], [-0.17, 0.037, 0.036], [-0.255, 0.029, 0.025]]
+		_mesh(elbow, M.loft(fore, 14), fore_mat)
+		if fore_mat != skin and str(look.get("sleeves", "")) != "mail":
+			# Bare wrist below a cloth sleeve.
+			_mesh(elbow, M.loft([[-0.2, 0.031, 0.028], [-0.265, 0.028, 0.024]], 10), skin)
+		_build_hand(elbow, side, gloves)
+		# Thigh, shin and boot.
+		_mesh(hip, M.loft([[0.05, 0.075, 0.08], [0.0, 0.085, 0.09], [-0.1, 0.082, 0.086, 0.0, -0.004],
+			[-0.25, 0.068, 0.073, 0.0, -0.006], [-0.4, 0.053, 0.058], [-0.47, 0.05, 0.056]], 14), trousers)
+		_mesh(knee, M.loft([[0.04, 0.052, 0.056], [-0.08, 0.054, 0.062, 0.0, 0.012], [-0.17, 0.047, 0.052, 0.0, 0.006]], 14), trousers)
+		_build_boot(knee, boots)
+
+
+func _build_hand(elbow: Node3D, side: float, material: Material) -> void:
+	var hand := _joint(elbow, Vector3(0, -0.255, -0.004))
+	hand.rotation = Vector3(0.12, 0, 0)
+	# Palm and fingers held together, slightly cupped.
+	# Palm faces the thigh, so the hand is narrow side to side and broad front to back.
+	_mesh(hand, M.loft([[0.01, 0.02, 0.027], [-0.03, 0.016, 0.038], [-0.07, 0.015, 0.04, -side * 0.002, 0.0],
+		[-0.1, 0.014, 0.036, -side * 0.006, 0.002], [-0.12, 0.011, 0.024, -side * 0.01, 0.004]], 12), material)
+	var thumb := _joint(hand, Vector3(-side * 0.006, -0.03, -0.03))
+	thumb.rotation = Vector3(0.35, 0, side * 0.25)
+	_mesh(thumb, M.loft([[0.0, 0.011, 0.012], [-0.035, 0.01, 0.01], [-0.055, 0.007, 0.007]], 8), material)
+
+
+func _build_boot(knee: Node3D, material: Material) -> void:
+	# Shaft from mid-calf to the ankle; scuffed and muddy toward the bottom.
+	_mesh(knee, M.loft([[-0.15, 0.06, 0.066, 0.0, 0.008], [-0.26, 0.052, 0.056, 0.0, 0.004], [-0.38, 0.046, 0.05],
+		[-0.44, 0.05, 0.056]], 14, [], [0.95, 0.6]), material)
+	# Foot lofted heel to toe, laid flat (loft +Y points forward, loft +Z points up).
+	var foot := _joint(knee, Vector3(0, -0.445, 0.01))
+	foot.rotation.x = -PI * 0.5
+	_mesh(foot, M.loft([[-0.045, 0.032, 0.028, 0.0, 0.012], [-0.02, 0.044, 0.042, 0.0, 0.018], [0.04, 0.047, 0.034, 0.0, 0.006],
+		[0.11, 0.046, 0.026, 0.0, -0.003], [0.155, 0.036, 0.02, 0.0, -0.006], [0.178, 0.018, 0.012, 0.0, -0.009]], 14, [], [0.75, 0.55]), material)
+
+
+# --- Head ---------------------------------------------------------------------------
+
+func _build_head() -> void:
+	var skin_col := _c("skin", "#b88a70")
+	var face := _joint(head, Vector3(0, 0.095, -0.005))
+	var beard := str(look.get("beard", "none"))
+	_mesh(face, M.head(beard == "stubble", float(look.get("ruddy", 0.3))), _mat("skin", skin_col, 1.0, 0.0, 0.25))
+
+	# Ears, eyes, brows.
+	var plain_skin := _mat("skin", skin_col, 1.0, 0.0, 0.25, false)
+	for sx in [-1.0, 1.0]:
+		P.ellipsoid(face, Vector3(sx * 0.072, -0.004, 0.008), Vector3(0.011, 0.03, 0.019), plain_skin)
+	var eye_white := P.m(Color(0.66, 0.62, 0.56), 0.35)
+	var iris := P.m(_c("eyes", "#3a3026"), 0.25)
+	var hair_col := _c("hair", "#3b2e24")
+	var hair := _mat("fur", hair_col, 0.6)
+	var brow_mat := _mat("fur", hair_col.darkened(0.15), 0.6, 0.0, 0.0, false)
+	for x in [-0.031, 0.031]:
+		var c := M.eye_centre(x)
+		P.ellipsoid(face, c, Vector3(0.0125, 0.0115, 0.0125), eye_white)
+		P.ellipsoid(face, c + Vector3(0, 0, -0.0105), Vector3(0.0058, 0.0058, 0.0028), iris)
+		# Heavy upper lid, half-closing the eye: weary, not wide-eyed.
+		var lid := P.ellipsoid(face, c + Vector3(0, 0.009, -0.0015), Vector3(0.0138, 0.0075, 0.0133), plain_skin)
+		lid.rotation.x = -0.25
+		var brow := P.ellipsoid(face, M.face_point(x * 1.08, 0.033, 0.003), Vector3(0.019, 0.0045, 0.006), brow_mat)
+		brow.rotation.z = signf(x) * -0.12
+	# A dark gap between the lips that opens while talking.
+	mouth = _joint(face, M.face_point(0.0, -0.0545, -0.0015))
+	P.ellipsoid(mouth, Vector3.ZERO, Vector3(0.019, 0.0016, 0.006), P.m(Color(0.16, 0.07, 0.06), 0.5))
+
+	var headwear := str(look.get("headwear", "none"))
+	if headwear != "helmet" and headwear != "coif":
+		_mesh(face, M.shell("hair", 0.011), hair)
+	match beard:
+		"full":
+			_mesh(face, M.shell("beard", 0.008), hair)
+		"long":
+			_mesh(face, M.shell("long_beard", 0.009), hair)
+	var hair_plain := _mat("fur", hair_col, 0.6, 0.0, 0.0, false)
+	if beard in ["mustache", "full", "long"]:
+		var stache := P.ellipsoid(face, M.face_point(0.0, -0.043, 0.006), Vector3(0.028, 0.0065, 0.009), hair_plain)
+		stache.rotation.x = 0.15
+		for sx in [-1.0, 1.0]:
+			var droop := P.ellipsoid(face, M.face_point(sx * 0.024, -0.054, 0.005), Vector3(0.006, 0.013, 0.006), hair_plain)
+			droop.rotation.z = sx * 0.3
+
+	match headwear:
+		"helmet", "coif":
+			_build_mail_hood(face, headwear == "helmet")
+		"crown":
+			var gold := _mat("rust_metal", _c("crown", "#9a7a3a"), 1.0, 0.75)
+			var band := P.torus(face, Vector3(0, 0.055, 0.004), 0.072, 0.086, gold)
+			band.scale = Vector3(1.0, 1.6, 1.25)
+			for i in 8:
+				var a := TAU * i / 8.0
+				var tine := _joint(face, Vector3(cos(a) * 0.079, 0.067, 0.004 + sin(a) * 0.099))
+				tine.rotation.y = -a
+				_mesh(tine, M.loft([[0.0, 0.004, 0.009], [0.025, 0.002, 0.005], [0.035, 0.0005, 0.001]], 4), gold)
+			P.ellipsoid(face, Vector3(0, 0.055, -0.106), Vector3(0.009, 0.011, 0.005), P.m(Color(0.32, 0.03, 0.05), 0.2, 0.1))
+		"cap":
+			_mesh(face, M.shell("cap", 0.016), _mat("cloth", _c("cap", "#b9b09c")))
+
+
+func _build_mail_hood(face: Node3D, helmet: bool) -> void:
+	var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+	_mesh(face, M.shell("coif", 0.006), mail)
+	# Mail mantle over the shoulders.
+	_mesh(chest, M.loft([[0.37, 0.06, 0.065], [0.31, 0.08, 0.08], [0.26, 0.17, 0.11], [0.2, 0.23, 0.13], [0.14, 0.22, 0.135]], 20, [], [1.0, 0.85], 0.02), mail)
+	if not helmet:
+		return
+	var steel := _mat("rust_metal", _c("helmet", "#c8c0b4"), 1.0, 0.7)
+	_mesh(face, M.shell("helmet", 0.02), steel)
+	var rim := P.torus(face, Vector3(0, 0.034, 0.006), 0.092, 0.104, steel)
+	rim.scale = Vector3(1.0, 0.8, 1.2)
+	var nasal := _joint(face, M.face_point(0.0, 0.03, 0.026))
+	_mesh(nasal, M.loft([[0.012, 0.006, 0.003], [-0.045, 0.0055, 0.003], [-0.058, 0.004, 0.0025]], 6), steel)
+
+
+# --- Costumes -----------------------------------------------------------------------
+
+func _build_costume() -> void:
+	var belt := _mat("leather", _c("belt", "#3a2a1e"))
+	var belt_y := 0.12
+	var waist := 0.168 if not _belly else 0.19
+	if look.has("hauberk"):
+		var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
+		var skirt := [[0.0, 0.175, 0.122], [-0.18, 0.19, 0.135], [-0.34, 0.2, 0.145]]
+		front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+		back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+		_mesh(front_panel, M.loft(skirt, 12, [PI + 0.1, TAU - 0.1], [1.0, 0.8], 0.015, false), mail, true)
+		_mesh(back_panel, M.loft(skirt, 12, [0.1, PI - 0.1], [1.0, 0.8], 0.015, false), mail, true)
+		_mesh(pelvis, M.loft([[0.14, 0.168, 0.115], [-0.02, 0.18, 0.124]], 18, [], [1.0, 1.0], 0.0, false), mail)
+	if look.has("surcoat"):
+		var coat := _mat("wool", _c("surcoat", "#2c3446"))
+		var body := [[0.255, 0.16, 0.118], [0.18, 0.207, 0.123], [0.1, 0.2, 0.127], [0.0, 0.183, 0.12], [-0.16, 0.17, 0.12]]
+		_mesh(chest, M.loft(body, 10, [PI + 0.55, TAU - 0.55], [1.0, 0.9], 0.0, false, 0.25), coat, true)
+		_mesh(chest, M.loft(body, 10, [0.55, PI - 0.55], [1.0, 0.9], 0.0, false, 0.25), coat, true)
+		var hang := [[0.0, 0.2, 0.135], [-0.25, 0.215, 0.15], [-0.52, 0.225, 0.158]]
+		if front_panel == null:
+			front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+			back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+		var fp := _joint(front_panel, Vector3.ZERO)
+		var bp := _joint(back_panel, Vector3.ZERO)
+		_mesh(fp, M.loft(hang, 8, [PI + 0.55, TAU - 0.55], [0.95, 0.45], 0.05, false, 0.3), coat, true)
+		_mesh(bp, M.loft(hang, 8, [0.55, PI - 0.55], [0.95, 0.45], 0.05, false, 0.3), coat, true)
+		_mesh(pelvis, M.loft([[0.14, 0.175, 0.124], [0.0, 0.19, 0.13]], 18, [], [0.9, 0.9], 0.0, false), coat)
+		if look.has("emblem"):
+			# A faded, hand-stitched sun on the chest.
+			var sun := _joint(chest, Vector3(0, 0.1, -0.128))
+			sun.rotation.x = PI * 0.5 - 0.08
+			var thread := P.m(_c("emblem", "#8a7440"), 0.9)
+			_mesh(sun, M.loft([[0.002, 0.038, 0.038], [-0.002, 0.038, 0.038]], 16), thread)
+			for i in 8:
+				var ray := _joint(sun, Vector3.ZERO)
+				ray.rotation.y = TAU * i / 8.0
+				P.ellipsoid(ray, Vector3(0.055, 0, 0), Vector3(0.018, 0.002, 0.006), thread)
+		belt_y = 0.09
+		waist = 0.19
+	if look.has("robe"):
+		var robe_mat := _mat("wool", _c("robe", "#3d1a22"))
+		robe = _joint(pelvis, Vector3(0, 0.05, 0))
+		_mesh(robe, M.loft([[0.06, 0.18, 0.125], [-0.2, 0.22, 0.16], [-0.55, 0.26, 0.2], [-0.98, 0.3, 0.24]], 22, [], [1.0, 0.4], 0.03, false), robe_mat, true)
+		_mesh(robe, M.loft([[-0.91, 0.302, 0.242], [-0.99, 0.31, 0.25]], 22, [], [0.6, 0.45], 0.0, false), _mat("fur", _c("collar", "#8a7f70"), 0.4), true)
+	if look.has("collar"):
+		# A heavy fur mantle over the shoulders.
+		_mesh(chest, M.loft([[0.36, 0.07, 0.072], [0.3, 0.11, 0.1], [0.25, 0.215, 0.135], [0.17, 0.25, 0.155], [0.08, 0.235, 0.15]], 22, [], [1.0, 0.7], 0.03), _mat("fur", _c("collar", "#8a7f70"), 0.4))
+	if look.has("cape"):
+		cape = _joint(chest, Vector3(0, 0.22, 0.02))
+		_mesh(cape, M.loft([[0.04, 0.18, 0.12], [-0.3, 0.24, 0.17], [-0.8, 0.29, 0.23], [-1.32, 0.33, 0.27]], 14, [0.25, PI - 0.25], [0.95, 0.35], 0.04, false, 0.2), _mat("wool", _c("cape", "#4a1616")), true)
+	if look.has("apron"):
+		var apron := _mat("cloth", _c("apron", "#cfc6b0"))
+		var bib := [[0.17, 0.165, 0.1], [0.05, 0.2, 0.165, 0.0, -0.045], [-0.08, 0.2, 0.17, 0.0, -0.05], [-0.16, 0.18, 0.135, 0.0, -0.025]]
+		if not _belly:
+			bib = [[0.17, 0.17, 0.1], [0.0, 0.17, 0.11], [-0.16, 0.16, 0.108]]
+		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.6), apron, true)
+		front_panel = _joint(pelvis, Vector3(0, 0.12, 0))
+		var skirt := [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.62, 0.22, 0.155]]
+		_mesh(front_panel, M.loft(skirt, 10, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7), apron, true)
+	# Belt and buckle.
+	_mesh(pelvis, M.loft([[belt_y + 0.025, waist + 0.008, waist * 0.7 + 0.01], [belt_y - 0.02, waist + 0.01, waist * 0.7 + 0.012]], 20), belt)
+	P.ellipsoid(pelvis, Vector3(0, belt_y, -waist * 0.7 - 0.016), Vector3(0.02, 0.022, 0.006), _mat("rust_metal", Color(0.75, 0.7, 0.62), 1.0, 0.7, 0.0, false))
+	if look.has("pouch"):
+		P.ellipsoid(pelvis, Vector3(0.14, belt_y - 0.06, -0.08), Vector3(0.04, 0.05, 0.025), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
+	if str(look.get("weapon", "")) == "spear":
+		_build_spear()
+
+
+func _build_spear() -> void:
+	spear = _joint(r_elbow, Vector3(0, -0.3, -0.02))
+	spear.rotation.x = -0.9
+	var wood := _mat("wood_dark", Color(0.42, 0.33, 0.24), 1.5, 0.0, 0.0, false)
+	var shaft := G.cylinder(spear, 0.016, 2.1, Vector3(0, 0.45, 0), wood, 0.014)
+	shaft.name = "Shaft"
+	var steel := _mat("rust_metal", Color(0.95, 0.9, 0.85), 0.4, 0.7)
+	var head_node := _joint(spear, Vector3(0, 1.48, 0))
+	_mesh(head_node, M.loft([[0.0, 0.017, 0.017], [0.06, 0.013, 0.013], [0.08, 0.032, 0.009], [0.16, 0.022, 0.006], [0.25, 0.002, 0.002]], 4), steel)
+
+
+# --- Animation ------------------------------------------------------------------------
+
 func _process(delta: float) -> void:
 	if pelvis == null:
 		return
 	_time += delta
-	_walk = lerpf(_walk, clampf(speed / 1.2, 0.0, 1.0), clampf(delta * 6.0, 0.0, 1.0))
+	_walk = lerpf(_walk, clampf(speed / 1.1, 0.0, 1.0), clampf(delta * 5.0, 0.0, 1.0))
 	_talk = maxf(_talk - delta, 0.0)
-	_gesture = lerpf(_gesture, 1.0 if _talk > 0.0 else 0.0, clampf(delta * 4.0, 0.0, 1.0))
+	_gesture = lerpf(_gesture, 1.0 if _talk > 0.0 else 0.0, clampf(delta * 3.0, 0.0, 1.0))
 	if pose == "sit":
 		_animate_sit()
 	else:
@@ -154,25 +375,27 @@ func _animate_stand(delta: float) -> void:
 	_phase = fmod(_phase + delta * speed / STRIDE * TAU, TAU)
 	var s := sin(_phase)
 	var c := cos(_phase)
-	var amp := 0.42 * _walk
-	var breath := sin(_time * 1.7)
-	var sway := sin(_time * 0.45)
+	var amp := 0.36 * _walk
+	var breath := sin(_time * 1.4)
+	var sway := sin(_time * 0.33)
+	var idle := 1.0 - _walk
 
-	pelvis.position.y = HIP_HEIGHT + 0.02 - 0.03 * _walk + absf(c) * 0.035 * _walk
-	pelvis.position.x = sway * 0.012 * (1.0 - _walk)
-	pelvis.rotation = Vector3(0.0, s * 0.09 * _walk, sway * 0.02 * (1.0 - _walk))
-	chest.rotation = Vector3(0.04 * _walk + breath * 0.015, -s * 0.13 * _walk, -sway * 0.02 * (1.0 - _walk))
+	# Heavy steps: the body drops onto each foot, and idles with its weight on one leg.
+	pelvis.position.y = HIP_HEIGHT + 0.02 - 0.035 * _walk + absf(c) * 0.025 * _walk - 0.012 * idle
+	pelvis.position.x = sway * 0.018 * idle
+	pelvis.rotation = Vector3(0.0, s * 0.07 * _walk, sway * 0.035 * idle + c * 0.025 * _walk)
+	chest.rotation = Vector3(0.06 * _walk + _slouch + breath * 0.012, -s * 0.09 * _walk, -sway * 0.03 * idle - c * 0.02 * _walk)
 
-	l_hip.rotation.x = s * amp
-	r_hip.rotation.x = -s * amp
-	l_knee.rotation.x = -maxf(0.0, c) * 0.95 * _walk - 0.03
-	r_knee.rotation.x = -maxf(0.0, -c) * 0.95 * _walk - 0.03
+	l_hip.rotation = Vector3(s * amp + 0.03 * idle * maxf(0.0, -sway), 0, -sway * 0.03 * idle)
+	r_hip.rotation = Vector3(-s * amp + 0.03 * idle * maxf(0.0, sway), 0, -sway * 0.03 * idle)
+	l_knee.rotation.x = -maxf(0.0, c) * 0.85 * _walk - 0.04 - 0.08 * idle * maxf(0.0, -sway)
+	r_knee.rotation.x = -maxf(0.0, -c) * 0.85 * _walk - 0.04 - 0.08 * idle * maxf(0.0, sway)
 
-	var arm := amp * 0.85
-	l_shoulder.rotation = Vector3(-s * arm, 0, -0.06)
-	r_shoulder.rotation = Vector3(s * arm, 0, 0.06)
-	l_elbow.rotation.x = 0.12 + 0.25 * _walk + maxf(0.0, -s) * 0.3 * _walk
-	r_elbow.rotation.x = 0.12 + 0.25 * _walk + maxf(0.0, s) * 0.3 * _walk
+	var arm := amp * 0.55
+	l_shoulder.rotation = Vector3(-s * arm + 0.04, 0, -0.08)
+	r_shoulder.rotation = Vector3(s * arm + 0.04, 0, 0.08)
+	l_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, -s) * 0.2 * _walk
+	r_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, s) * 0.2 * _walk
 
 	if spear != null:
 		# The spear hand stays steady and keeps the shaft upright.
@@ -182,14 +405,14 @@ func _animate_stand(delta: float) -> void:
 
 
 func _animate_sit() -> void:
-	var breath := sin(_time * 1.5)
+	var breath := sin(_time * 1.2)
 	pelvis.position = Vector3(0, 0.55, 0.0)
 	pelvis.rotation = Vector3.ZERO
-	chest.rotation = Vector3(-0.06 + breath * 0.012, 0, 0)
+	chest.rotation = Vector3(0.05 + breath * 0.01, 0, 0.02)
 	for hip in [l_hip, r_hip]:
 		hip.rotation = Vector3(PI * 0.5, 0, 0)
-	l_hip.rotation.z = -0.08
-	r_hip.rotation.z = 0.08
+	l_hip.rotation.z = -0.1
+	r_hip.rotation.z = 0.1
 	l_knee.rotation.x = -PI * 0.5
 	r_knee.rotation.x = -PI * 0.5
 	l_shoulder.rotation = Vector3(0.45, 0, -0.18)
@@ -205,15 +428,15 @@ func _apply_gesture() -> void:
 	var right := str(look.get("gesture_arm", "right")) == "right"
 	var shoulder := r_shoulder if right else l_shoulder
 	var elbow := r_elbow if right else l_elbow
-	var wave := sin(_time * 2.3)
-	shoulder.rotation.x = lerpf(shoulder.rotation.x, 0.55 + wave * 0.18, _gesture)
-	shoulder.rotation.z = lerpf(shoulder.rotation.z, (0.25 if right else -0.25), _gesture)
-	elbow.rotation.x = lerpf(elbow.rotation.x, 1.0 + sin(_time * 3.1) * 0.2, _gesture)
+	var wave := sin(_time * 1.7)
+	shoulder.rotation.x = lerpf(shoulder.rotation.x, 0.4 + wave * 0.1, _gesture)
+	shoulder.rotation.z = lerpf(shoulder.rotation.z, (0.18 if right else -0.18), _gesture)
+	elbow.rotation.x = lerpf(elbow.rotation.x, 0.95 + sin(_time * 2.3) * 0.12, _gesture)
 
 
 func _animate_head(delta: float) -> void:
 	var yaw := 0.0
-	var pitch := 0.0
+	var pitch := -_slouch * 0.6
 	var cam: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
 	if look_at_camera and cam != null:
 		var to := cam.global_position - head.global_position
@@ -223,152 +446,38 @@ func _animate_head(delta: float) -> void:
 			if absf(raw) < 1.9:
 				yaw = clampf(raw, -1.1, 1.1)
 				pitch = clampf(atan2(local.y, Vector2(local.x, local.z).length()), -0.4, 0.4)
-	var k := clampf(delta * 4.0, 0.0, 1.0)
+	var k := clampf(delta * 2.5, 0.0, 1.0)
 	_head_yaw = lerpf(_head_yaw, yaw, k)
 	_head_pitch = lerpf(_head_pitch, pitch, k)
-	var nod := sin(_time * 5.0) * 0.06 * _gesture
-	neck.rotation = Vector3(0, _head_yaw * 0.4, 0)
+	var nod := sin(_time * 3.6) * 0.04 * _gesture
+	neck.rotation = Vector3(-_slouch * 0.5, _head_yaw * 0.4, 0)
 	head.rotation = Vector3(_head_pitch + nod, _head_yaw * 0.6, 0)
 	if mouth != null:
 		var open := 0.0
 		if _talk > 0.0:
-			open = absf(sin(_time * 13.0)) * 0.7 + absf(sin(_time * 7.3)) * 0.3
-		mouth.scale = Vector3(1.0, 1.0 + open * 3.0, 1.0)
+			open = absf(sin(_time * 12.0)) * 0.7 + absf(sin(_time * 6.7)) * 0.3
+		mouth.scale = Vector3(1.0 - open * 0.15, 1.0 + open * 3.5, 1.0)
 
 
 func _animate_layers() -> void:
-	# Cloth panels swing out of the way of the legs.
+	# Cloth and mail panels swing out of the way of the legs.
 	var forward := maxf(maxf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	var back := minf(minf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	if pose == "sit":
-		forward = 0.0
+		forward = PI * 0.42
 		back = 0.0
 	if front_panel != null:
-		front_panel.rotation.x = forward * 0.9
+		front_panel.rotation.x = forward * 0.85
 	if back_panel != null:
-		back_panel.rotation.x = back * 0.9
+		back_panel.rotation.x = back * 0.85
 	if cape != null:
-		cape.rotation.x = -0.05 - _walk * 0.18 + sin(_time * 1.3) * 0.02
+		cape.rotation.x = -0.03 - _walk * 0.12 + sin(_time * 1.1) * 0.015
 	if robe != null:
 		robe.visible = pose != "sit"
-		robe.rotation.x = sin(_phase) * 0.04 * _walk
+		robe.rotation.x = sin(_phase) * 0.035 * _walk
 
 
 # --- Construction helpers --------------------------------------------------------
-
-func _build_head(skin: Material) -> void:
-	var hair_col := _c("hair", "#3b2a1e")
-	var hair := _cloth(hair_col)
-	var skull := G.sphere(head, 0.125, Vector3(0, 0.08, 0), skin)
-	skull.scale = Vector3(0.9, 1.08, 1.0)
-	var dark := G.mat(Color(0.08, 0.06, 0.05), 0.0, 0.0, 0.4)
-	var white := G.mat(Color(0.92, 0.9, 0.86), 0.0, 0.0, 0.4)
-	for x in [-0.043, 0.043]:
-		G.sphere(head, 0.02, Vector3(x, 0.1, -0.103), white)
-		G.sphere(head, 0.011, Vector3(x, 0.1, -0.12), dark)
-		G.box(head, Vector3(0.05, 0.012, 0.02), Vector3(x, 0.13, -0.112), hair, false)
-		var ear := G.sphere(head, 0.03, Vector3(x * 2.75, 0.08, 0.0), skin)
-		ear.scale = Vector3(0.5, 1.0, 0.8)
-	G.box(head, Vector3(0.032, 0.055, 0.045), Vector3(0, 0.07, -0.128), skin, false)
-	mouth = _joint(head, Vector3(0, 0.025, -0.113))
-	G.box(mouth, Vector3(0.05, 0.01, 0.012), Vector3.ZERO, G.mat(Color(0.35, 0.1, 0.1)), false)
-
-	var headwear := str(look.get("headwear", "none"))
-	if headwear != "helmet":
-		var cap := G.sphere(head, 0.13, Vector3(0, 0.12, 0.015), hair)
-		cap.scale = Vector3(0.95, 0.75, 1.05)
-		var back := G.sphere(head, 0.12, Vector3(0, 0.06, 0.04), hair)
-		back.scale = Vector3(0.95, 0.9, 0.85)
-
-	match str(look.get("beard", "none")):
-		"stubble":
-			var st := G.sphere(head, 0.105, Vector3(0, 0.025, -0.02), _cloth(hair_col.darkened(0.2)))
-			st.scale = Vector3(0.95, 0.6, 0.95)
-		"mustache":
-			G.box(head, Vector3(0.09, 0.022, 0.03), Vector3(0, 0.045, -0.118), hair, false)
-		"full":
-			var b := G.sphere(head, 0.11, Vector3(0, 0.005, -0.04), hair)
-			b.scale = Vector3(0.95, 0.85, 0.85)
-			G.box(head, Vector3(0.09, 0.022, 0.03), Vector3(0, 0.045, -0.118), hair, false)
-		"long":
-			var lb := G.cylinder(head, 0.035, 0.24, Vector3(0, -0.06, -0.08), hair, 0.09)
-			lb.rotation.x = -0.25
-			var jaw := G.sphere(head, 0.11, Vector3(0, 0.01, -0.035), hair)
-			jaw.scale = Vector3(0.95, 0.85, 0.85)
-			G.box(head, Vector3(0.1, 0.025, 0.03), Vector3(0, 0.045, -0.118), hair, false)
-
-	match headwear:
-		"helmet":
-			var steel := _metal(Color(0.62, 0.64, 0.68))
-			var dome := MeshInstance3D.new()
-			var hemi := SphereMesh.new()
-			hemi.radius = 0.15
-			hemi.height = 0.15
-			hemi.is_hemisphere = true
-			dome.mesh = hemi
-			dome.material_override = steel
-			dome.position = Vector3(0, 0.1, 0)
-			head.add_child(dome)
-			G.cylinder(head, 0.152, 0.035, Vector3(0, 0.1, 0), steel)
-			G.box(head, Vector3(0.025, 0.09, 0.02), Vector3(0, 0.07, -0.145), steel, false)
-		"crown":
-			var gold := G.mat(Color(0.95, 0.75, 0.25), 0.3, 0.9, 0.3)
-			G.cylinder(head, 0.125, 0.07, Vector3(0, 0.2, 0.01), gold)
-			for i in 6:
-				var a := TAU * i / 6.0
-				var spike := G.box(head, Vector3(0.03, 0.07, 0.02), Vector3(sin(a) * 0.12, 0.26, 0.01 + cos(a) * 0.12), gold, false)
-				spike.rotation.y = a
-			G.sphere(head, 0.018, Vector3(0, 0.2, -0.125), G.mat(Color(0.7, 0.05, 0.1), 0.5, 0.2, 0.2))
-		"chef_hat":
-			var linen := _cloth(Color(0.96, 0.95, 0.92))
-			G.cylinder(head, 0.12, 0.14, Vector3(0, 0.22, 0.01), linen)
-			var puff := G.sphere(head, 0.15, Vector3(0, 0.31, 0.01), linen)
-			puff.scale = Vector3(1, 0.6, 1)
-
-
-func _build_layers() -> void:
-	if look.has("tabard"):
-		var tabard := _cloth(_c("tabard", "#26396b"))
-		var emblem := G.mat(_c("emblem", "#e0b44a"), 0.2, 0.6, 0.4)
-		var t := G.box(chest, Vector3(0.36, 0.42, 0.02), Vector3(0, -0.02, -0.125), tabard, false)
-		t.rotation.x = 0.05
-		G.box(chest, Vector3(0.36, 0.42, 0.02), Vector3(0, -0.02, 0.125), tabard, false)
-		var sun := G.cylinder(chest, 0.07, 0.01, Vector3(0, 0.02, -0.14), emblem)
-		sun.rotation.x = PI * 0.5
-		front_panel = _joint(pelvis, Vector3(0, 0.05, -0.12))
-		G.box(front_panel, Vector3(0.32, 0.42, 0.02), Vector3(0, -0.19, 0), tabard, false)
-		back_panel = _joint(pelvis, Vector3(0, 0.05, 0.12))
-		G.box(back_panel, Vector3(0.32, 0.42, 0.02), Vector3(0, -0.19, 0), tabard, false)
-	if look.has("apron"):
-		var apron := _cloth(_c("apron", "#f2efe6"))
-		var bib := G.box(chest, Vector3(0.26, 0.3, 0.02), Vector3(0, -0.02, -0.15 if bool(look.get("belly", false)) else -0.125), apron, false)
-		bib.rotation.x = 0.1
-		front_panel = _joint(pelvis, Vector3(0, 0.08, -0.15 if bool(look.get("belly", false)) else -0.12))
-		G.box(front_panel, Vector3(0.38, 0.6, 0.02), Vector3(0, -0.28, 0), apron, false)
-	if look.has("robe"):
-		robe = _joint(pelvis, Vector3(0, 0.08, 0))
-		G.cylinder(robe, 0.4, 1.0, Vector3(0, -0.5, 0), _cloth(_c("robe", "#4a1d5c")), 0.19)
-		G.cylinder(robe, 0.405, 0.06, Vector3(0, -0.97, 0), G.mat(_c("belt", "#d9a83a"), 0.2, 0.7, 0.4))
-	if look.has("cape"):
-		cape = _joint(chest, Vector3(0, 0.22, 0.12))
-		G.box(cape, Vector3(0.5, 1.4, 0.03), Vector3(0, -0.7, 0.03), _cloth(_c("cape", "#8a1418")), false)
-	if look.has("collar"):
-		var fur := _cloth(_c("collar", "#ece6da"))
-		var collar := G.cylinder(chest, 0.17, 0.09, Vector3(0, 0.24, 0), fur, 0.11)
-		collar.scale = Vector3(1.2, 1, 0.9)
-	if str(look.get("weapon", "")) == "spear":
-		spear = _joint(r_elbow, Vector3(0, -0.29, -0.02))
-		spear.rotation.x = -0.9
-		var wood := S.get_material("wood_floor", Color(0.8, 0.75, 0.7), 1.0, false)
-		G.box(spear, Vector3(0.035, 2.1, 0.035), Vector3(0, 0.45, 0), wood, false)
-		var tip := MeshInstance3D.new()
-		var prism := PrismMesh.new()
-		prism.size = Vector3(0.07, 0.22, 0.02)
-		tip.mesh = prism
-		tip.material_override = _metal(Color(0.75, 0.77, 0.8))
-		tip.position = Vector3(0, 1.61, 0)
-		spear.add_child(tip)
-
 
 func _joint(parent: Node, pos: Vector3) -> Node3D:
 	var j := Node3D.new()
@@ -377,16 +486,18 @@ func _joint(parent: Node, pos: Vector3) -> Node3D:
 	return j
 
 
-func _capsule(parent: Node, radius: float, height: float, pos: Vector3, material: Material) -> MeshInstance3D:
+func _mesh(parent: Node, mesh: Mesh, material: Material, two_sided := false) -> MeshInstance3D:
 	var mi := MeshInstance3D.new()
-	var cap := CapsuleMesh.new()
-	cap.radius = radius
-	cap.height = height
-	cap.radial_segments = 12
-	cap.rings = 4
-	mi.mesh = cap
+	mi.mesh = mesh
+	if two_sided:
+		var m: StandardMaterial3D = (material as StandardMaterial3D)
+		var key := str(m.get_instance_id()) + "|2"
+		if not _materials.has(key):
+			var d := m.duplicate() as StandardMaterial3D
+			d.cull_mode = BaseMaterial3D.CULL_DISABLED
+			_materials[key] = d
+		material = _materials[key]
 	mi.material_override = material
-	mi.position = pos
 	parent.add_child(mi)
 	return mi
 
@@ -395,20 +506,26 @@ func _c(key: String, fallback: String) -> Color:
 	return Color.html(str(look.get(key, fallback)))
 
 
-func _cloth(color: Color) -> Material:
-	return S.get_material("cloth", color, 0.5, false)
-
-
-func _leather(color: Color) -> Material:
-	return G.mat(color, 0.0, 0.0, 0.6)
-
-
-func _metal(color: Color) -> Material:
-	return G.mat(color, 0.0, 0.85, 0.35)
-
-
-func _skin(color: Color) -> Material:
-	var m := G.mat(color, 0.0, 0.0, 0.65)
-	m.rim_enabled = true
-	m.rim = 0.2
+## A textured character material: `color` is the colour the surface should read
+## as on average; vertex colours (grime, stains, skin shading) multiply on top.
+func _mat(surface: String, color: Color, tile_mult := 1.0, metallic := 0.0, subsurface := 0.0, vertex_colour := true) -> StandardMaterial3D:
+	var key := "%s|%s|%.2f|%.2f|%.2f|%s" % [surface, color.to_html(), tile_mult, metallic, subsurface, vertex_colour]
+	if _materials.has(key):
+		return _materials[key]
+	var mean: Color = TEXTURE_MEAN.get(surface, Color(0.7, 0.7, 0.7))
+	var tint := Color(minf(color.r / mean.r, 1.0), minf(color.g / mean.g, 1.0), minf(color.b / mean.b, 1.0))
+	var tile: float = float(TEXTURE_TILE.get(surface, 0.4)) * tile_mult
+	var m := S.get_material(surface, tint, tile, false).duplicate() as StandardMaterial3D
+	m.vertex_color_use_as_albedo = vertex_colour
+	m.uv1_triplanar_sharpness = 2.0
+	if metallic > 0.0:
+		m.metallic = metallic
+		m.metallic_specular = 0.6
+	if subsurface > 0.0:
+		m.subsurf_scatter_enabled = true
+		m.subsurf_scatter_strength = subsurface
+		m.rim_enabled = true
+		m.rim = 0.12
+		m.rim_tint = 0.6
+	_materials[key] = m
 	return m

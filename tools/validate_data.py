@@ -21,8 +21,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 DIALOGUE_DIR = ROOT / "data" / "dialogue"
 QUESTS = ROOT / "data" / "quests.json"
 CHARACTERS = ROOT / "data" / "characters.json"
-COLOR_KEYS = {"skin", "hair", "shirt", "tabard", "emblem", "trousers", "boots", "belt",
-              "robe", "cape", "collar", "apron"}
+COLOR_KEYS = {"skin", "hair", "eyes", "shirt", "mail", "gloves", "surcoat", "emblem", "trousers",
+              "boots", "belt", "robe", "cape", "collar", "apron", "helmet", "crown", "cap"}
 
 errors: list[str] = []
 raised_events: set[str] = set()

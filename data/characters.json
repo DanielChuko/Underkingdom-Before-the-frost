@@ -1,36 +1,36 @@
 {
-  "_comment": "Character looks. Colours are hex. beard: none | stubble | mustache | full | long. headwear: none | helmet | crown | chef_hat. sleeves: cloth | metal | rolled. Optional layers: tabard, robe, cape, collar, apron, belly, weapon (spear). gesture_arm: which hand gestures while talking.",
+  "_comment": "Character looks. Colours are hex and describe the worn, faded colour the surface should read as. torso: wool | chainmail (what the shirt layer is made of). sleeves: cloth | mail | rolled. beard: none | stubble | mustache | full | long. headwear: none | coif | helmet (coif + nasal helm) | crown | cap. Optional layers: hauberk (mail skirt), surcoat (+ emblem), robe, cape, collar (fur mantle; also the robe's hem trim), apron, belly, gloves, pouch, weapon (spear). ruddy: 0-1 redness of nose and cheeks. slouch: forward lean in radians. gesture_arm: which hand gestures while talking.",
   "guard": {
-    "skin": "#d6a587", "hair": "#3b2a1e", "beard": "stubble",
-    "shirt": "#6f7178", "sleeves": "metal",
-    "tabard": "#26396b", "emblem": "#e0b44a",
-    "trousers": "#3a2e24", "boots": "#2a1d14", "belt": "#4a3322",
-    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+    "skin": "#a87a62", "hair": "#2e241c", "eyes": "#3a3026", "beard": "stubble", "ruddy": 0.35,
+    "torso": "chainmail", "shirt": "#8e8a84", "mail": "#8e8a84", "sleeves": "mail", "hauberk": true,
+    "surcoat": "#2c3446", "emblem": "#7d6a3e", "gloves": "#33261c",
+    "trousers": "#3a3128", "boots": "#2a1f17", "belt": "#33261c", "helmet": "#b8b0a4",
+    "headwear": "helmet", "weapon": "spear", "slouch": 0.06, "gesture_arm": "left"
   },
   "guard_patrol": {
-    "skin": "#b98466", "hair": "#5a3b22", "beard": "full",
-    "shirt": "#6f7178", "sleeves": "metal",
-    "tabard": "#26396b", "emblem": "#e0b44a",
-    "trousers": "#33291f", "boots": "#2a1d14", "belt": "#4a3322",
-    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+    "skin": "#946a55", "hair": "#40301f", "eyes": "#2e2a22", "beard": "full", "ruddy": 0.25,
+    "torso": "chainmail", "shirt": "#857f78", "mail": "#857f78", "sleeves": "mail", "hauberk": true,
+    "surcoat": "#28303f", "emblem": "#76653c", "gloves": "#2e2219", "pouch": true,
+    "trousers": "#30291f", "boots": "#261c15", "belt": "#2e2219", "helmet": "#aaa296",
+    "headwear": "helmet", "weapon": "spear", "slouch": 0.08, "gesture_arm": "left"
   },
   "gate_guard": {
-    "skin": "#e0b096", "hair": "#2b2118", "beard": "mustache",
-    "shirt": "#6f7178", "sleeves": "metal",
-    "tabard": "#26396b", "emblem": "#e0b44a",
-    "trousers": "#3a2e24", "boots": "#2a1d14", "belt": "#4a3322",
-    "headwear": "helmet", "weapon": "spear", "gesture_arm": "left"
+    "skin": "#b38469", "hair": "#241c15", "eyes": "#33291f", "beard": "mustache", "ruddy": 0.5,
+    "torso": "chainmail", "shirt": "#8a8680", "mail": "#8a8680", "sleeves": "mail", "hauberk": true,
+    "surcoat": "#2a3142", "emblem": "#7a683d", "gloves": "#33261c",
+    "trousers": "#3a3128", "boots": "#2a1f17", "belt": "#33261c",
+    "headwear": "coif", "weapon": "spear", "slouch": 0.1, "gesture_arm": "left"
   },
   "king": {
-    "skin": "#e2b59a", "hair": "#cfcac2", "beard": "long",
-    "shirt": "#4a1d5c", "robe": "#4a1d5c", "cape": "#8a1418", "collar": "#ece6da",
-    "trousers": "#4a1d5c", "boots": "#3a1f1a", "belt": "#d9a83a",
-    "headwear": "crown", "gesture_arm": "right"
+    "skin": "#b89078", "hair": "#a8a39a", "eyes": "#40403a", "beard": "long", "ruddy": 0.2,
+    "shirt": "#3d1a22", "robe": "#3d1a22", "cape": "#4a1616", "collar": "#7a6e60",
+    "trousers": "#2e1a1a", "boots": "#2a1a16", "belt": "#3a2418", "crown": "#8f7338",
+    "headwear": "crown", "slouch": 0.1, "gesture_arm": "right"
   },
   "cook": {
-    "skin": "#e8a98c", "hair": "#6b4a2f", "beard": "mustache",
-    "shirt": "#d9d2c0", "sleeves": "rolled", "apron": "#f2efe6", "belly": true,
-    "trousers": "#4b3b2e", "boots": "#2e2219", "belt": "#5a4230",
-    "headwear": "chef_hat", "gesture_arm": "right"
+    "skin": "#b8846a", "hair": "#4a3626", "eyes": "#3a2e22", "beard": "mustache", "ruddy": 0.6,
+    "shirt": "#a89f88", "sleeves": "rolled", "apron": "#c2b89f", "belly": true,
+    "trousers": "#3b3127", "boots": "#2a1f17", "belt": "#3e2e20", "cap": "#b3aa95",
+    "headwear": "cap", "pouch": true, "gesture_arm": "right"
   }
 }
