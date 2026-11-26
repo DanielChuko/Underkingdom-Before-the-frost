@@ -46,7 +46,8 @@ scripts/ui/hud.gd        Prompts, toasts, quest tracker, journal, dialogue box, 
 data/dialogue/*.json     Conversations (gate_guard, king_prelude, king_act1) and barks.json
 data/quests.json         Quests and their objectives
 data/characters.json     How each character looks (colours, clothes, beard, headwear)
-scripts/characters/      humanoid.gd: the character rig and its procedural animation
+scripts/characters/      humanoid.gd: the character rig, costumes and procedural animation;
+                         mesh_lib.gd: lofted body meshes, the sculpted head, hair/beard/mail/helmet shells
 assets/textures/         Generated surface textures (albedo, normal, roughness)
 tools/gen_textures.py    Generates every texture from seeded noise
 tools/validate_data.py   Checks dialogue and quest files (runs in CI)
@@ -58,7 +59,7 @@ All art is generated, not taken from asset packs or other games.
 
 - **Textures** (stone walls, flagstone, wood planks, dark wood, cloth, plaster, mud, cobbles) come from `tools/gen_textures.py`. Run `pip install numpy pillow` and `python3 tools/gen_textures.py` to rebuild them; change a `seed` to get a different variation. They tile seamlessly and are applied with triplanar mapping in `scripts/world/surfaces.gd`, so any box gets evenly scaled texturing.
 - **Architecture and props** (door frames, pillars, beams, tables, benches, barrels, crates, sacks, shields, rugs, shelves, chandeliers) are assembled from primitives in `scripts/world/decor.gd`.
-- **Characters** are jointed rigs built from primitives (`scripts/characters/humanoid.gd`) and dressed from `data/characters.json` (skin, hair, beard, clothes, armour, headwear, spear). They animate in code with no keyframes: a walk cycle driven by actual movement speed, idle breathing and weight shift, a seated pose for the king, mouth movement and hand gestures while their dialogue line is on screen, and heads that turn to look at you when you're close. Add a new character by adding a look to the JSON and passing its id to `G.npc()`.
+- **Characters** are jointed rigs (`scripts/characters/humanoid.gd`) whose meshes are generated in code by `scripts/characters/mesh_lib.gd`: smooth lofted torsos, limbs, hands and boots, and a head sculpted from a sphere (brow ridge, eye sockets, nose, cheekbones, lips, jaw and chin) with eyes, heavy lids, ears, hair and beards. They are dressed from `data/characters.json` in worn, muted clothing: mail hauberks, coifs and rusty nasal helms, faded surcoats with torn hems, a fur-trimmed robe and mantle, a stained apron. Vertex colours add dirt toward hems and boots, stains and skin shading, on top of generated chainmail, leather, wool, skin, rusty steel and fur textures. They animate in code with no keyframes: a walk cycle driven by actual movement speed, idle breathing and weight shift, a seated pose for the king, mouth movement and hand gestures while their dialogue line is on screen, and heads that turn to look at you when you're close. Add a new character by adding a look to the JSON and passing its id to `G.npc()`.
 - **Fire, dust and light**: particle flames, flickering torch light with shadows, ambient occlusion and a light volumetric haze. A sun beam comes through Casimir's window in Act 1.
 
 ## Writing dialogue
