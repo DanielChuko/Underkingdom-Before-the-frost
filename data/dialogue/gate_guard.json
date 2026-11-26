@@ -1,0 +1,37 @@
+{
+  "id": "gate_guard",
+  "start": "halt",
+  "on_end": { "set": ["gate_passed"], "events": ["gate_passed"] },
+  "nodes": {
+    "halt": {
+      "speaker": "Guard",
+      "text": "Halt! Identify yourself, wanderer!",
+      "choices": [
+        { "text": "\"Stand down, guard. My name is Casimir Vael of Hollowmere...\"", "next": "casimir_intro" },
+        { "text": "[Hold up the Arcane University's seal]", "next": "casimir_seal" }
+      ]
+    },
+    "casimir_intro": {
+      "speaker": "Casimir",
+      "text": "Stand down, guard. My name is Casimir Vael of Hollowmere. I am an envoy from the Arcane University, bearing news for the king. My quest is of grave importance.",
+      "next": "guard_lets_pass"
+    },
+    "casimir_seal": {
+      "speaker": "Casimir",
+      "action": "Casimir holds up a letter sealed with the University's wax seal.",
+      "text": "Casimir Vael of Hollowmere, envoy of the Arcane University. I bear news for the king, and my quest is of grave importance.",
+      "next": "guard_lets_pass"
+    },
+    "guard_lets_pass": {
+      "speaker": "Guard",
+      "text": "An envoy with a message, you say? Then I won't delay you any further, m'lord. Go right ahead.",
+      "next": "guard_shouts"
+    },
+    "guard_shouts": {
+      "speaker": "Guard",
+      "action": "He turns and shouts up at the gatehouse.",
+      "text": "Open the gates!",
+      "next": "end"
+    }
+  }
+}

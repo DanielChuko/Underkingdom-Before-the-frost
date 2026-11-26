@@ -1,0 +1,26 @@
+{
+  "quests": [
+    {
+      "id": "q_prelude",
+      "title": "The Grave Message",
+      "description": "Bring the Arcane University's warning to the king.",
+      "objectives": [
+        { "id": "reach_hall", "text": "Find the king's hall at the end of the corridor", "complete_on": "reached_kings_hall" },
+        { "id": "deliver", "text": "Deliver the University's message to the king", "complete_on": "king_message_delivered" }
+      ]
+    },
+    {
+      "id": "q_act1",
+      "title": "Trouble at the Dig",
+      "description": "The diggers have breached a goblin encampment. The king wants it cleared.",
+      "objectives": [
+        { "id": "see_king", "text": "Speak with the king in his hall", "complete_on": "king_briefing_done" },
+        { "id": "leave", "text": "Leave the castle through the kitchen's outer door", "complete_on": "left_castle" },
+        { "id": "sword", "text": "Collect your sword near the Quartermaster's shop", "complete_on": "sword_collected" },
+        { "id": "clear", "text": "Help the guards clear the goblins from the dig site", "complete_on": "dig_site_cleared" },
+        { "id": "foreman", "text": "Report to the Foreman", "complete_on": "foreman_reported" },
+        { "id": "return", "text": "Return to the king", "complete_on": "king_debriefed" }
+      ]
+    }
+  ]
+}

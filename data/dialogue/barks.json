@@ -1,0 +1,17 @@
+{
+  "guard_hall": [
+    "For the king!",
+    "Hope the cook is making something worthwhile today."
+  ],
+  "guard_patrol": [
+    "Envoy.",
+    "I think there's a pebble in my sabaton."
+  ],
+  "cook": [
+    "We're having pork butts and taters today!",
+    "Pork butt is better than a boiled rat!"
+  ],
+  "king_after_briefing": [
+    "Go on, envoy. The dig site awaits."
+  ]
+}
