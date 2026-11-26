@@ -33,7 +33,7 @@
     },
     "k_where": {
       "speaker": "King",
-      "text": "Leave through the kitchen. The big door there opens onto the road, and the road leads down to the dig. Follow the noise of the picks.",
+      "text": "Leave by the great doors at the castle entrance, the same way you came in. The road outside leads down to the dig. Follow the noise of the picks.",
       "choices": [
         { "text": "\"Understood, sire.\"", "next": "c_understood" }
       ]

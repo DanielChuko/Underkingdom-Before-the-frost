@@ -15,7 +15,7 @@
       "description": "The diggers have breached a goblin encampment. The king wants it cleared.",
       "objectives": [
         { "id": "see_king", "text": "Speak with the king in his hall", "complete_on": "king_briefing_done" },
-        { "id": "leave", "text": "Leave the castle through the kitchen's outer door", "complete_on": "left_castle" },
+        { "id": "leave", "text": "Leave the castle through the entrance doors", "complete_on": "left_castle" },
         { "id": "sword", "text": "Collect your sword near the Quartermaster's shop", "complete_on": "sword_collected" },
         { "id": "clear", "text": "Help the guards clear the goblins from the dig site", "complete_on": "dig_site_cleared" },
         { "id": "foreman", "text": "Report to the Foreman", "complete_on": "foreman_reported" },

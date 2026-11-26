@@ -17,6 +17,7 @@ const G := preload("res://scripts/world/greybox.gd")
 const NpcScript := preload("res://scripts/world/npc.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const D := preload("res://scripts/world/decor.gd")
+const P := preload("res://scripts/world/props.gd")
 
 const CORRIDOR_H := 4.0
 const CORRIDOR_C_H := 5.0
@@ -30,6 +31,7 @@ const GAP_H := 2.4
 var root: Node3D
 var act := 0
 var npcs: Dictionary = {}
+var entrance_doors
 
 var stone: Material
 var stone_dark: Material
@@ -66,11 +68,10 @@ func build(for_act: int) -> Dictionary:
 	hall_trigger.add_child(cs)
 	root.add_child(hall_trigger)
 
-	var exit_door := G.prop(root, Vector3(0.2, 3.0, 2.4), Vector3(9.27, 1.5, -8.5), null, "Leave the castle")
-	G.box(exit_door, Vector3(0.1, 3.0, 1.15), Vector3(0, 0, -0.6), wood_dark, false)
-	G.box(exit_door, Vector3(0.1, 3.0, 1.15), Vector3(0, 0, 0.6), wood_dark, false)
-	G.box(exit_door, Vector3(0.14, 0.1, 2.3), Vector3(0, -0.7, 0), stone_dark, false)
-	G.box(exit_door, Vector3(0.14, 0.1, 2.3), Vector3(0, 0.8, 0), stone_dark, false)
+	# The kitchen's yard door stays bolted; the castle is left by the entrance doors.
+	var yard = G.door(root, Vector3(9.28, 0, -7.3), Vector3(0, 0, -1), Vector3.ZERO, 2.4, 2.9, wood_dark, "yard door", true)
+	yard.locked = true
+	yard.locked_message = "The yard door is bolted. The way out is through the great doors at the entrance."
 
 	var spawn_pos := Vector3(0.0, 0.05, -1.6)
 	var spawn_yaw := 0.0
@@ -83,7 +84,7 @@ func build(for_act: int) -> Dictionary:
 		"spawn_yaw": spawn_yaw,
 		"npcs": npcs,
 		"hall_trigger": hall_trigger,
-		"exit_door": exit_door,
+		"exit_door": entrance_doors,
 	}
 
 
@@ -124,11 +125,16 @@ func _corridors() -> void:
 	G.wall(root, Vector2(14.0, -16), Vector2(14.0, -34), CORRIDOR_C_H, stone)
 	G.box(root, Vector3(3.0, 1.0, 0.3), Vector3(12.5, 4.5, -19.0), stone)
 
-	# The two great double doors: barred shut.
-	for z in [-0.22, -18.78]:
-		var big = G.door(root, Vector3(-1.3, 0, z), Vector3(1, 0, 0), Vector3.ZERO, 2.6, 3.2, wood_dark, "great doors", true)
-		big.locked = true
-		big.locked_message = "The great doors are barred from the other side."
+	# The entrance doors (where the prelude starts) lead out of the castle in
+	# Act 1. The great doors at the far end of the corridor stay barred.
+	entrance_doors = G.door(root, Vector3(-1.3, 0, -0.22), Vector3(1, 0, 0), Vector3.ZERO, 2.6, 3.2, wood_dark, "entrance doors", true)
+	entrance_doors.locked = true
+	entrance_doors.locked_message = "Not now. The king is waiting for your message."
+	if act >= 1:
+		entrance_doors.use_prompt = "Leave the castle"
+	var far_doors = G.door(root, Vector3(-1.3, 0, -18.78), Vector3(1, 0, 0), Vector3.ZERO, 2.6, 3.2, wood_dark, "great doors", true)
+	far_doors.locked = true
+	far_doors.locked_message = "The great doors are barred from the other side."
 
 	# Five locked side doors, flush against the walls.
 	_locked(Vector3(-1.28, 0, -13.4), Vector3(0, 0, -1))
@@ -247,8 +253,9 @@ func _player_room() -> void:
 	G.box(root, Vector3(1.2, 0.06, 0.7), Vector3(-2.6, 0.75, -9.3), wood)
 	for off in [Vector2(-0.5, -0.28), Vector2(0.5, -0.28), Vector2(-0.5, 0.28), Vector2(0.5, 0.28)]:
 		G.box(root, Vector3(0.06, 0.72, 0.06), Vector3(-2.6 + off.x, 0.36, -9.3 + off.y), wood_dark, false)
-	G.cylinder(root, 0.035, 0.2, Vector3(-2.3, 0.88, -9.4), G.mat(Color(0.95, 0.93, 0.85)))
-	G.flame(root, Vector3(-2.3, 1.0, -9.4), 0.3)
+	P.candle_holder(root, Vector3(-2.3, 0.78, -9.45))
+	P.inkwell_and_quill(root, Vector3(-2.75, 0.78, -9.5))
+	P.book_stack(root, Vector3(-3.0, 0.78, -9.2), 3)
 	G.light(root, Vector3(-2.3, 1.15, -9.2), Color(1.0, 0.75, 0.45), 1.2, 5.0, true, 0.12)
 	G.box(root, Vector3(0.45, 0.05, 0.45), Vector3(-2.6, 0.45, -8.5), wood)
 	G.box(root, Vector3(0.45, 0.6, 0.05), Vector3(-2.6, 0.75, -8.28), wood)
@@ -261,9 +268,7 @@ func _player_room() -> void:
 	# Small table with a pot and a single flower (blooming in Act 1; it withers act by act).
 	G.box(root, Vector3(0.5, 0.04, 0.5), Vector3(-6.9, 0.7, -9.4), wood)
 	G.box(root, Vector3(0.06, 0.7, 0.06), Vector3(-6.9, 0.35, -9.4), wood_dark, false)
-	G.cylinder(root, 0.12, 0.2, Vector3(-6.9, 0.82, -9.4), G.mat(Color(0.65, 0.35, 0.22)), 0.14)
-	G.cylinder(root, 0.012, 0.3, Vector3(-6.9, 1.07, -9.4), G.mat(Color(0.25, 0.55, 0.2)))
-	G.sphere(root, 0.07, Vector3(-6.9, 1.24, -9.4), G.mat(Color(0.95, 0.45, 0.65), 0.3))
+	P.potted_flower(root, Vector3(-6.9, 0.72, -9.4), 0.0)
 	G.prop(root, Vector3(0.5, 0.9, 0.5), Vector3(-6.9, 0.85, -9.4), null, "Look at the flower", "A single flower, in full bloom.")
 
 	# Painting of a snowy mountain above the bed.
@@ -294,10 +299,18 @@ func _kitchen() -> void:
 
 	# Table with a knife stuck in it and a piece of meat.
 	D.table(root, Vector3(5.5, 0, -8.5), Vector3(2.4, 0.89, 1.2))
-	var knife := G.box(root, Vector3(0.03, 0.28, 0.06), Vector3(5.0, 1.0, -8.4), G.mat(Color(0.75, 0.77, 0.8), 0.0, 0.9, 0.25), false)
-	knife.rotation.z = 0.25
-	G.box(root, Vector3(0.04, 0.12, 0.05), Vector3(4.97, 1.18, -8.4), wood_dark, false)
-	G.box(root, Vector3(0.45, 0.15, 0.32), Vector3(5.9, 0.965, -8.6), G.mat(Color(0.6, 0.22, 0.2)), false)
+	var top := 0.89
+	P.knife_stuck(root, Vector3(4.95, top, -8.35), 0.4, 0.28)
+	P.cutting_board(root, Vector3(5.85, top, -8.55), 0.1)
+	P.roast(root, Vector3(5.8, top + 0.03, -8.55), 0.1)
+	P.bread(root, Vector3(4.55, top, -8.85), 0.6)
+	P.cheese(root, Vector3(6.45, top, -8.15))
+	P.onion(root, Vector3(4.6, top, -8.2))
+	P.onion(root, Vector3(4.68, top, -8.12))
+	P.carrot(root, Vector3(5.1, top, -8.95), 0.3)
+	P.carrot(root, Vector3(5.15, top, -9.0), 0.1)
+	P.jug(root, Vector3(6.55, top, -8.95), Color(0.62, 0.42, 0.3), 2.0)
+	P.bowl(root, Vector3(4.3, top, -8.4), 0.1)
 
 	# Fireplace on the south wall with a hanging pot.
 	G.box(root, Vector3(0.4, 1.7, 0.8), Vector3(4.6, 0.85, -3.55), stone_dark)
@@ -305,7 +318,14 @@ func _kitchen() -> void:
 	G.box(root, Vector3(2.4, 0.5, 0.9), Vector3(5.5, 1.95, -3.6), stone_dark)
 	G.box(root, Vector3(1.0, 0.25, 0.45), Vector3(5.5, 0.12, -3.5), G.mat(Color(1.0, 0.45, 0.12), 5.0), false)
 	G.box(root, Vector3(0.03, 0.9, 0.03), Vector3(5.5, 1.25, -3.6), G.mat(Color(0.1, 0.1, 0.1)), false)
-	G.cylinder(root, 0.3, 0.4, Vector3(5.5, 0.65, -3.6), G.mat(Color(0.12, 0.12, 0.12), 0.0, 0.7, 0.5), 0.26)
+	P.cooking_pot(root, Vector3(5.5, 0.4, -3.6), 0.26)
+	P.ladle(root, Vector3(6.4, 1.55, -4.0))
+	P.pan(root, Vector3(4.0, 1.7, -3.15), Vector3(0, 0, -1))
+	P.pan(root, Vector3(3.55, 1.6, -3.15), Vector3(0, 0, -1))
+	P.firewood(root, Vector3(7.2, 0, -3.55), 3)
+	P.bucket(root, Vector3(3.6, 0, -3.5))
+	for hx in [3.0, 4.2, 6.8, 8.0]:
+		P.herb_bundle(root, Vector3(hx, ROOM_H - 0.28, -11.0), Color(0.35, 0.5, 0.22) if hx < 5.0 else Color(0.5, 0.45, 0.25))
 	G.flame(root, Vector3(5.2, 0.2, -3.5), 2.0)
 	G.flame(root, Vector3(5.8, 0.2, -3.55), 1.8)
 	G.light(root, Vector3(5.5, 0.9, -4.3), Color(1.0, 0.55, 0.25), 3.0, 9.0, true, 0.3)
@@ -314,13 +334,43 @@ func _kitchen() -> void:
 	G.box(root, Vector3(2.4, 2.2, 0.05), Vector3(5.5, 1.1, -13.82), wood_dark, false)
 	for x in [4.32, 6.68]:
 		G.box(root, Vector3(0.06, 2.2, 0.5), Vector3(x, 1.1, -13.6), wood_dark, false)
-	var foods := [Color(0.35, 0.6, 0.2), Color(0.9, 0.5, 0.1), Color(0.75, 0.15, 0.15), Color(0.85, 0.75, 0.4), Color(0.55, 0.25, 0.2)]
 	var shelf_y := [0.5, 1.1, 1.7]
-	for s in shelf_y.size():
-		G.box(root, Vector3(2.3, 0.05, 0.5), Vector3(5.5, shelf_y[s], -13.6), wood, false)
-		for k in 6:
-			var c: Color = foods[(k + s * 2) % foods.size()]
-			G.sphere(root, 0.09, Vector3(4.6 + k * 0.36, shelf_y[s] + 0.12, -13.58), G.mat(c))
+	for y in shelf_y:
+		G.box(root, Vector3(2.3, 0.05, 0.5), Vector3(5.5, y, -13.6), wood, false)
+	var z := -13.6
+	# Bottom shelf: cabbages and a basket of potatoes.
+	var b0: float = shelf_y[0] + 0.025
+	P.cabbage(root, Vector3(4.6, b0, z))
+	P.cabbage(root, Vector3(4.85, b0, z + 0.08))
+	var fill := P.basket(root, Vector3(5.6, b0, z), 0.18, 0.13)
+	for i in 6:
+		P.potato(root, Vector3(5.6 + (i % 3 - 1) * 0.07, b0 + fill - 0.02 + (i / 3) * 0.025, z + (i % 2 - 0.5) * 0.08), i * 0.9)
+	for i in 5:
+		P.potato(root, Vector3(6.15 + (i % 3) * 0.08, b0, z + (i / 3) * 0.09 - 0.04), i * 1.3)
+	# Middle shelf: a basket of apples, pears, onions.
+	var b1: float = shelf_y[1] + 0.025
+	var afill := P.basket(root, Vector3(4.75, b1, z), 0.17, 0.11)
+	for i in 7:
+		var a := TAU * i / 7.0
+		P.apple(root, Vector3(4.75 + cos(a) * 0.08, b1 + afill - 0.03, z + sin(a) * 0.08), Color(0.72, 0.1, 0.08) if i % 3 else Color(0.55, 0.65, 0.15))
+	P.apple(root, Vector3(4.75, b1 + afill + 0.02, z))
+	for i in 3:
+		P.pear(root, Vector3(5.35 + i * 0.09, b1, z + (i % 2) * 0.06))
+	for i in 6:
+		P.onion(root, Vector3(5.95 + (i % 3) * 0.085, b1, z - 0.06 + (i / 3) * 0.09))
+	# Top shelf: bread, cheese wheels and jugs.
+	var b2: float = shelf_y[2] + 0.025
+	P.bread(root, Vector3(4.65, b2, z), 0.1)
+	P.bread(root, Vector3(4.85, b2, z + 0.1), -0.2)
+	P.cheese(root, Vector3(5.45, b2, z))
+	P.cheese(root, Vector3(5.45, b2 + 0.08, z))
+	P.jug(root, Vector3(6.0, b2, z), Color(0.55, 0.4, 0.3), 1.2)
+	P.jug(root, Vector3(6.35, b2, z + 0.05), Color(0.4, 0.35, 0.3), 2.5)
+	# Hanging meat under the cabinet top.
+	G.box(root, Vector3(2.3, 0.03, 0.03), Vector3(5.5, 2.12, -13.45), D.iron(), false)
+	P.sausages(root, Vector3(4.7, 2.1, -13.45), 4)
+	P.ham(root, Vector3(5.6, 2.1, -13.45))
+	P.sausages(root, Vector3(6.35, 2.1, -13.45), 3)
 	G.solid(root, Vector3(2.4, 2.2, 0.55), Vector3(5.5, 1.1, -13.6))
 	G.torch(root, Vector3(2.0, 2.2, -3.15), Vector3(0, 0, -1), 1.5, 7.0)
 
@@ -336,6 +386,7 @@ func _toilet() -> void:
 	G.box(root, Vector3(2.0, 0.5, 0.75), Vector3(4.5, 0.25, -22.5), stone_dark)
 	G.cylinder(root, 0.18, 0.02, Vector3(4.5, 0.51, -22.45), G.mat(Color(0.02, 0.02, 0.02)))
 	G.torch(root, Vector3(5.85, 1.9, -21.0), Vector3(-1, 0, 0), 1.4, 5.0)
+	P.bucket(root, Vector3(3.35, 0, -21.6))
 
 
 func _architecture() -> void:
@@ -396,12 +447,18 @@ func _dressing() -> void:
 		D.bench(root, Vector3(tx + 0.75, 0, -42.0), 8.5)
 		for i in 6:
 			var z := -38.5 - i * 1.4
-			G.cylinder(root, 0.13, 0.02, Vector3(tx - 0.25, 0.81, z), D.iron())
-			G.cylinder(root, 0.13, 0.02, Vector3(tx + 0.25, 0.81, z), D.iron())
-			G.cylinder(root, 0.04, 0.14, Vector3(tx + 0.25, 0.89, z + 0.25), gold, 0.05)
-		for z in [-39.0, -45.0]:
-			G.cylinder(root, 0.03, 0.22, Vector3(tx, 0.91, z), G.mat(Color(0.93, 0.9, 0.8)))
-			G.flame(root, Vector3(tx, 1.04, z), 0.3)
+			P.plate(root, Vector3(tx - 0.27, 0.8, z))
+			P.plate(root, Vector3(tx + 0.27, 0.8, z))
+			P.goblet(root, Vector3(tx - 0.3, 0.8, z - 0.25))
+			P.goblet(root, Vector3(tx + 0.3, 0.8, z + 0.25))
+		for z in [-39.2, -42.0, -44.8]:
+			P.candle_holder(root, Vector3(tx, 0.8, z))
+		P.bowl(root, Vector3(tx, 0.8, -40.6), 0.14)
+		for i in 5:
+			var a := TAU * i / 5.0
+			P.apple(root, Vector3(tx + cos(a) * 0.06, 0.84, -40.6 + sin(a) * 0.06), Color(0.72, 0.1, 0.08) if i % 2 else Color(0.85, 0.6, 0.12))
+		P.bread(root, Vector3(tx, 0.8, -43.4), 1.57)
+		P.jug(root, Vector3(tx, 0.8, -46.0), Color(0.6, 0.42, 0.3), 0.5)
 	for z in [-41.0, -47.0]:
 		D.shield(root, Vector3(2.65, 3.2, z), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
 		D.shield(root, Vector3(22.35, 3.4, z), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
