@@ -1,0 +1,243 @@
+extends RefCounted
+## Static helpers for building greybox geometry in code: boxes, walls with
+## door gaps, doors, torches, NPC stand-ins and interactable props.
+## Everything is plain primitives so the layout can be iterated quickly and
+## later swapped for real art.
+
+const DoorScript := preload("res://scripts/world/door.gd")
+const PropScript := preload("res://scripts/world/prop.gd")
+
+const WALL_THICKNESS := 0.3
+
+
+static func mat(color: Color, emission_energy := 0.0, metallic := 0.0, roughness := 0.9) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.albedo_color = color
+	m.metallic = metallic
+	m.roughness = roughness
+	if emission_energy > 0.0:
+		m.emission_enabled = true
+		m.emission = color
+		m.emission_energy_multiplier = emission_energy
+	return m
+
+
+## A box mesh. With collide=true it is wrapped in a StaticBody3D.
+static func box(parent: Node, size: Vector3, pos: Vector3, material: Material, collide := true) -> Node3D:
+	var mi := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = size
+	mi.mesh = bm
+	mi.material_override = material
+	if not collide:
+		mi.position = pos
+		parent.add_child(mi)
+		return mi
+	var body := StaticBody3D.new()
+	body.position = pos
+	parent.add_child(body)
+	body.add_child(mi)
+	_add_box_shape(body, size)
+	return body
+
+
+## Invisible collision only.
+static func solid(parent: Node, size: Vector3, pos: Vector3, rot := Vector3.ZERO) -> StaticBody3D:
+	var body := StaticBody3D.new()
+	body.position = pos
+	body.rotation = rot
+	parent.add_child(body)
+	_add_box_shape(body, size)
+	return body
+
+
+static func cylinder(parent: Node, radius: float, height: float, pos: Vector3, material: Material, top_radius := -1.0) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.bottom_radius = radius
+	cm.top_radius = radius if top_radius < 0.0 else top_radius
+	cm.height = height
+	mi.mesh = cm
+	mi.material_override = material
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+static func sphere(parent: Node, radius: float, pos: Vector3, material: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var sm := SphereMesh.new()
+	sm.radius = radius
+	sm.height = radius * 2.0
+	mi.mesh = sm
+	mi.material_override = material
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+static func light(parent: Node, pos: Vector3, color: Color, energy: float, light_range: float, shadows := false) -> OmniLight3D:
+	var l := OmniLight3D.new()
+	l.position = pos
+	l.light_color = color
+	l.light_energy = energy
+	l.omni_range = light_range
+	l.shadow_enabled = shadows
+	parent.add_child(l)
+	return l
+
+
+## Floor slab (top at y=0) and ceiling slab (bottom at y=height) for a rectangle.
+static func floor_and_ceiling(parent: Node, x0: float, x1: float, z0: float, z1: float, height: float, floor_mat: Material, ceiling_mat: Material) -> void:
+	var w := absf(x1 - x0)
+	var d := absf(z1 - z0)
+	var cx := (x0 + x1) * 0.5
+	var cz := (z0 + z1) * 0.5
+	box(parent, Vector3(w, 0.2, d), Vector3(cx, -0.1, cz), floor_mat)
+	box(parent, Vector3(w, 0.2, d), Vector3(cx, height + 0.1, cz), ceiling_mat)
+
+
+## Axis-aligned wall from a to b (XZ coordinates). Each gap is
+## [center (absolute x or z along the wall), width, opening height].
+static func wall(parent: Node, a: Vector2, b: Vector2, height: float, material: Material, gaps := [], base_y := 0.0) -> void:
+	var along_x := absf(a.y - b.y) < 0.001
+	var s0: float = minf(a.x, b.x) if along_x else minf(a.y, b.y)
+	var s1: float = maxf(a.x, b.x) if along_x else maxf(a.y, b.y)
+	var fixed: float = a.y if along_x else a.x
+	var sorted := gaps.duplicate()
+	sorted.sort_custom(func(p, q) -> bool: return p[0] < q[0])
+	var cursor := s0
+	for g in sorted:
+		var g0: float = g[0] - g[1] * 0.5
+		var g1: float = g[0] + g[1] * 0.5
+		_wall_segment(parent, along_x, fixed, cursor, g0, base_y, base_y + height, material)
+		_wall_segment(parent, along_x, fixed, g0, g1, base_y + g[2], base_y + height, material)
+		cursor = g1
+	_wall_segment(parent, along_x, fixed, cursor, s1, base_y, base_y + height, material)
+
+
+## A door. `hinge` is the bottom of the hinge edge, `along` points from the hinge
+## to the free edge, and `open_into` is the side the door swings towards.
+## A double door puts the second hinge at hinge + along * width.
+static func door(parent: Node, hinge: Vector3, along: Vector3, open_into: Vector3, width: float, height: float, material: Material, label := "door", double := false) -> Node3D:
+	var d = DoorScript.new()
+	d.label = label
+	parent.add_child(d)
+	var trim := mat(Color(0.12, 0.1, 0.09), 0.0, 0.6, 0.5)
+	if double:
+		_door_leaf(d, hinge, along, open_into, width * 0.5, height, material, trim)
+		_door_leaf(d, hinge + along * width, -along, open_into, width * 0.5, height, material, trim)
+	else:
+		_door_leaf(d, hinge, along, open_into, width, height, material, trim)
+	return d
+
+
+static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, light_range := 9.0) -> void:
+	var holder := mat(Color(0.15, 0.12, 0.1), 0.0, 0.5, 0.6)
+	var flame := mat(Color(1.0, 0.6, 0.2), 6.0)
+	box(parent, Vector3(0.1, 0.5, 0.1), pos + facing * 0.12, holder, false)
+	sphere(parent, 0.1, pos + facing * 0.12 + Vector3(0, 0.32, 0), flame)
+	light(parent, pos + facing * 0.5 + Vector3(0, 0.4, 0), Color(1.0, 0.72, 0.45), energy, light_range)
+
+
+## Interactable prop with a visible box and matching collision.
+static func prop(parent: Node, size: Vector3, pos: Vector3, material: Material, prompt: String, message := "") -> StaticBody3D:
+	var p = PropScript.new()
+	p.position = pos
+	p.prompt = prompt
+	p.message = message
+	parent.add_child(p)
+	if material != null:
+		var mi := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = size
+		mi.mesh = bm
+		mi.material_override = material
+		p.add_child(mi)
+	_add_box_shape(p, size)
+	return p
+
+
+## Greybox character: capsule body, head, a "nose" showing which way it faces
+## (local -Z), plus an optional accessory: "helmet", "crown" or "cook".
+static func npc(parent: Node, script: Script, display_name: String, pos: Vector3, yaw: float, body_color: Color, accessory := "") -> CharacterBody3D:
+	var n = script.new()
+	n.display_name = display_name
+	n.position = pos
+	n.rotation.y = yaw
+	parent.add_child(n)
+
+	var vis := Node3D.new()
+	vis.name = "Visual"
+	n.add_child(vis)
+	var skin := mat(Color(0.85, 0.68, 0.55))
+	var body := MeshInstance3D.new()
+	var cap := CapsuleMesh.new()
+	cap.radius = 0.3
+	cap.height = 1.5
+	body.mesh = cap
+	body.material_override = mat(body_color)
+	body.position.y = 0.75
+	vis.add_child(body)
+	sphere(vis, 0.2, Vector3(0, 1.62, 0), skin)
+	box(vis, Vector3(0.06, 0.07, 0.1), Vector3(0, 1.62, -0.22), skin, false)
+
+	match accessory:
+		"helmet":
+			var steel := mat(Color(0.6, 0.62, 0.66), 0.0, 0.8, 0.35)
+			cylinder(vis, 0.22, 0.2, Vector3(0, 1.78, 0), steel)
+			box(vis, Vector3(0.05, 2.3, 0.05), Vector3(0.42, 1.15, -0.05), mat(Color(0.35, 0.25, 0.15)), false)
+			box(vis, Vector3(0.12, 0.25, 0.04), Vector3(0.42, 2.38, -0.05), steel, false)
+		"crown":
+			cylinder(vis, 0.17, 0.16, Vector3(0, 1.86, 0), mat(Color(0.95, 0.75, 0.25), 0.6, 0.9, 0.3))
+			box(vis, Vector3(0.7, 1.3, 0.05), Vector3(0, 0.95, 0.3), mat(Color(0.55, 0.08, 0.1)), false)
+		"cook":
+			var white := mat(Color(0.95, 0.95, 0.92))
+			cylinder(vis, 0.16, 0.3, Vector3(0, 1.9, 0), white, 0.2)
+			box(vis, Vector3(0.5, 0.8, 0.05), Vector3(0, 0.75, -0.31), white, false)
+
+	var shape := CapsuleShape3D.new()
+	shape.radius = 0.35
+	shape.height = 1.8
+	var col := CollisionShape3D.new()
+	col.shape = shape
+	col.position.y = 0.9
+	n.add_child(col)
+	return n
+
+
+static func _add_box_shape(body: Node, size: Vector3) -> void:
+	var cs := CollisionShape3D.new()
+	var shape := BoxShape3D.new()
+	shape.size = size
+	cs.shape = shape
+	body.add_child(cs)
+
+
+static func _wall_segment(parent: Node, along_x: bool, fixed: float, s0: float, s1: float, y0: float, y1: float, material: Material) -> void:
+	if s1 - s0 < 0.01 or y1 - y0 < 0.01:
+		return
+	var mid := (s0 + s1) * 0.5
+	var ymid := (y0 + y1) * 0.5
+	if along_x:
+		box(parent, Vector3(s1 - s0, y1 - y0, WALL_THICKNESS), Vector3(mid, ymid, fixed), material)
+	else:
+		box(parent, Vector3(WALL_THICKNESS, y1 - y0, s1 - s0), Vector3(fixed, ymid, mid), material)
+
+
+static func _door_leaf(door_node, hinge: Vector3, along: Vector3, open_into: Vector3, width: float, height: float, material: Material, trim: Material) -> void:
+	var pivot := Node3D.new()
+	pivot.position = hinge
+	# Rotate so the leaf's local +X points along `along`.
+	var closed := atan2(-along.z, along.x)
+	pivot.rotation.y = closed
+	door_node.add_child(pivot)
+	box(pivot, Vector3(width - 0.04, height, 0.08), Vector3(width * 0.5, height * 0.5, 0), material)
+	# Iron bands and a handle so doors read as doors.
+	box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.25, 0), trim, false)
+	box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.75, 0), trim, false)
+	box(pivot, Vector3(0.06, 0.2, 0.16), Vector3(width - 0.15, height * 0.45, 0), trim, false)
+	var plus := closed + PI * 0.5
+	var dir_plus := Vector3(cos(plus), 0.0, -sin(plus))
+	var open := plus if dir_plus.dot(open_into) > 0.0 else closed - PI * 0.5
+	door_node.leaves.append({"node": pivot, "closed": closed, "open": open})

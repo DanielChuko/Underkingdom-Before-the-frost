@@ -1,0 +1,52 @@
+{
+  "id": "king_act1",
+  "start": "k_awake",
+  "on_end": { "set": ["act1_briefed"], "events": ["king_briefing_done"] },
+  "nodes": {
+    "k_awake": {
+      "speaker": "King",
+      "text": "Finally awake, Casimir. After yesterday's feast, I thought you would never wake up.",
+      "next": "c_generosity"
+    },
+    "c_generosity": {
+      "speaker": "Casimir",
+      "text": "Your generosity is surpassed only by your wisdom, sire. I won't go hungry for days.",
+      "next": "k_strength"
+    },
+    "k_strength": {
+      "speaker": "King",
+      "text": "You will need that strength, envoy. I have received news that the dig has been going well, but a little problem has been found. And by little, I do in fact mean little. It appears the diggers have breached a small goblin encampment.",
+      "next": "c_buggers"
+    },
+    "c_buggers": {
+      "speaker": "Casimir",
+      "text": "Those green buggers? I thought the Emperor had rid us of that menace.",
+      "next": "k_orders"
+    },
+    "k_orders": {
+      "speaker": "King",
+      "text": "On the surface the Emperor might have, but underground the job falls to us. I have sent some guards to the dig site. I want you to go help them rid it of the goblins and report the outcome of this little endeavor. Once the site is cleared, report to the Foreman and then come straight to me.",
+      "choices": [
+        { "text": "\"Understood, sire.\"", "next": "c_understood" },
+        { "text": "\"Where will I find the dig site?\"", "if": "!asked_dig_site", "set": ["asked_dig_site"], "next": "k_where" }
+      ]
+    },
+    "k_where": {
+      "speaker": "King",
+      "text": "Leave through the kitchen. The big door there opens onto the road, and the road leads down to the dig. Follow the noise of the picks.",
+      "choices": [
+        { "text": "\"Understood, sire.\"", "next": "c_understood" }
+      ]
+    },
+    "c_understood": {
+      "speaker": "Casimir",
+      "text": "Understood, sire.",
+      "next": "k_sword"
+    },
+    "k_sword": {
+      "speaker": "King",
+      "text": "Good. You will find your sword near the dig site, just by the Quartermaster's shop. On your way, soldier, and may God light your path.",
+      "next": "end"
+    }
+  }
+}

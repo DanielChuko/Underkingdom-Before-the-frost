@@ -1,0 +1,127 @@
+{
+  "id": "king_prelude",
+  "start": "k_welcome",
+  "on_end": { "set": ["message_delivered"], "events": ["king_message_delivered"] },
+  "nodes": {
+    "k_welcome": {
+      "speaker": "King",
+      "text": "Welcome, traveler. The guards told me of your arrival. I trust you're enjoying your stay?",
+      "next": "c_hail"
+    },
+    "c_hail": {
+      "speaker": "Casimir",
+      "text": "Hail, great king. Unfortunately, I have not yet had the honor of enjoying your great kingdom. I've come bearing grave news from the Arcane University of Hollowmere!",
+      "next": "k_proceed"
+    },
+    "k_proceed": {
+      "speaker": "King",
+      "text": "Then let us not waste candlelight on pleasantries. Proceed with the message, traveler.",
+      "next": "c_grim"
+    },
+    "c_grim": {
+      "speaker": "Casimir",
+      "text": "The news from the Arcane University is grim, sire. Our mages found signs of an impending doom in the stars themselves. With a heavy heart I must inform you that the sun as we know it... is dying, my lord, and...",
+      "next": "k_dying"
+    },
+    "k_dying": {
+      "speaker": "King",
+      "text": "What do you mean, \"dying\", envoy?",
+      "next": "c_literal"
+    },
+    "c_literal": {
+      "speaker": "Casimir",
+      "text": "In a literal sense, sire. The sun is dying. And that's not all...",
+      "next": "k_go_on"
+    },
+    "k_go_on": {
+      "speaker": "King",
+      "text": "Proceed, envoy...",
+      "next": "c_frost"
+    },
+    "c_frost": {
+      "speaker": "Casimir",
+      "text": "The University has concluded that, should the sun in fact die, a great frost will engulf the lands. A never-ending winter will come, sire.",
+      "next": "k_forsaken"
+    },
+    "k_forsaken": {
+      "speaker": "King",
+      "action": "The king silently turns away and walks toward the kingdom's crest. After a moment of silence, he speaks.",
+      "cue": "king_to_crest",
+      "text": "Gods, how have we sinned? What have we done to deserve this punishment? The priest was right. We truly are forsaken.",
+      "next": "k_graves"
+    },
+    "k_graves": {
+      "speaker": "King",
+      "action": "He turns toward Casimir.",
+      "cue": "king_face_player",
+      "text": "So what now, then? Should we start digging our own graves? We would starve in any case. It's only a matter of time.",
+      "next": "c_two_things"
+    },
+    "c_two_things": {
+      "speaker": "Casimir",
+      "text": "You have two things right, sire, whether by chance or by your royal wisdom.",
+      "next": "k_how"
+    },
+    "k_how": {
+      "speaker": "King",
+      "text": "How do you mean, envoy?",
+      "next": "c_dig"
+    },
+    "c_dig": {
+      "speaker": "Casimir",
+      "text": "The University and the Emperor have come to the conclusion that the best option for our survival is, in fact, to \"dig\".",
+      "next": "c_future"
+    },
+    "c_future": {
+      "speaker": "Casimir",
+      "action": "Casimir holds a moment of silence.",
+      "text": "But we won't be digging our graves. We'll be digging a new future, a future underground. That is the only way we can survive.",
+      "next": "k_insane"
+    },
+    "k_insane": {
+      "speaker": "King",
+      "text": "That's insane! Have they lost their minds? What kind of alchemical concoction have they been drinking in that University?! How exactly are we supposed to build a whole kingdom underground?!",
+      "next": "c_list"
+    },
+    "c_list": {
+      "speaker": "Casimir",
+      "text": "The University has provided a list of what needs to be done, including the duties of the quartermaster, builders, diggers and miners. The Empire has provided quarry workers, and they should arrive in the coming weeks.",
+      "next": "k_provides"
+    },
+    "k_provides": {
+      "speaker": "King",
+      "text": "Seems the Emperor really does provide...",
+      "next": "c_timeline"
+    },
+    "c_timeline": {
+      "speaker": "Casimir",
+      "text": "Indeed, sire, and that's not all. The University has agreed on a timeline. All considered, the kingdom has about two years to finish digging and building before the frost engulfs the lands.",
+      "next": "c_service"
+    },
+    "c_service": {
+      "speaker": "Casimir",
+      "text": "An envoy such as myself has been sent to each kingdom under the Emperor's light, and we will lend our hands to help save humanity. I am at your full disposal, sire.",
+      "next": "k_dying_date"
+    },
+    "k_dying_date": {
+      "speaker": "King",
+      "text": "A dying date, for a dying kingdom. At least we have one last fighting chance. Wouldn't you agree, envoy?",
+      "next": "c_peril"
+    },
+    "c_peril": {
+      "speaker": "Casimir",
+      "text": "Indeed, sire. May the gods protect us in our time of peril.",
+      "next": "k_rest"
+    },
+    "k_rest": {
+      "speaker": "King",
+      "text": "We have made arrangements for you, envoy. You will be clothed, fed, washed and bedded. Go and rest. We will wait for the workers to come. Until then, I will make all the necessary arrangements.",
+      "next": "c_aye"
+    },
+    "c_aye": {
+      "speaker": "Casimir",
+      "text": "Aye, my lord.",
+      "next": "end"
+    }
+  }
+}
