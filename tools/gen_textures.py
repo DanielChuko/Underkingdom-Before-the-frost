@@ -378,6 +378,29 @@ def fur(seed=16):
     save("fur", albedo, strands * 6.0 + clumps * 4.0, 0.95, 0.25)
 
 
+def quilted(seed=17):
+    """Quilted linen of a gambeson: puffed vertical channels between rows of
+    stitching, over a coarse weave, sweat-darkened and grimy."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float)
+    channels = 8
+    wobble = (fractal_noise(rng, beta=2.5, stretch=(1.0, 6.0)) - 0.5) * 0.12
+    u = (xx / SIZE * channels + wobble) % 1.0
+    puff = np.sin(u * np.pi) ** 0.6
+    seam = np.clip(1.0 - np.minimum(u, 1.0 - u) / 0.05, 0, 1)
+    dashes = (np.sin(yy / SIZE * 2 * np.pi * 64) > -0.2).astype(float)
+    stitch = seam * dashes
+    threads = 128
+    weave = 0.5 + 0.25 * np.sin(xx / SIZE * threads * 2 * np.pi) + 0.25 * np.sin(yy / SIZE * threads * 2 * np.pi)
+    lumps = fractal_noise(rng, beta=2.2, stretch=(1.0, 3.0))
+    dirt = fractal_noise(rng, beta=2.8)
+    lum = 0.62 + puff * 0.12 + (weave - 0.5) * 0.06 + (lumps - 0.5) * 0.08
+    lum -= seam * 0.18 + stitch * 0.08 + np.clip(dirt - 0.5, 0, 1) * 0.55
+    albedo = tint(lum, (1.0, 0.96, 0.88))
+    height = puff * 10.0 + lumps * 2.0 + weave * 0.6 - stitch * 2.0
+    save("quilted", albedo, height, 0.92 + weave * 0.05, 0.35)
+
+
 if __name__ == "__main__":
     stone_wall()
     flagstone()
@@ -393,3 +416,4 @@ if __name__ == "__main__":
     skin()
     rust_metal()
     fur()
+    quilted()

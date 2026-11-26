@@ -31,11 +31,11 @@ const TEXTURE_MEAN := {
 	"chainmail": Color(0.41, 0.41, 0.41), "leather": Color(0.29, 0.21, 0.15),
 	"wool": Color(0.68, 0.66, 0.63), "skin": Color(0.87, 0.85, 0.83),
 	"rust_metal": Color(0.31, 0.3, 0.3), "fur": Color(0.55, 0.53, 0.5),
-	"cloth": Color(0.78, 0.78, 0.78),
+	"cloth": Color(0.78, 0.78, 0.78), "quilted": Color(0.68, 0.65, 0.6),
 }
 const TEXTURE_TILE := {
 	"chainmail": 0.12, "leather": 0.35, "wool": 0.3, "skin": 0.25,
-	"rust_metal": 0.3, "fur": 0.25, "cloth": 0.4,
+	"rust_metal": 0.3, "fur": 0.25, "cloth": 0.4, "quilted": 0.32,
 }
 
 static var _looks: Dictionary = {}
@@ -140,6 +140,9 @@ func _build_body() -> void:
 			fore_mat = upper_mat
 		"rolled":
 			fore_mat = skin
+		"quilted":
+			upper_mat = _mat("quilted", _c("gambeson", "#9a9078"))
+			fore_mat = upper_mat
 
 	# Pelvis and hips, in trousers.
 	_mesh(pelvis, M.loft([[0.13, 0.15, 0.1], [0.04, 0.168, 0.112], [-0.06, 0.17, 0.112], [-0.12, 0.13, 0.1]], 18, [], [0.9, 0.75]), trousers)
@@ -149,7 +152,18 @@ func _build_body() -> void:
 	if _belly:
 		torso = [[-0.16, 0.16, 0.12, 0.0, -0.02], [-0.08, 0.185, 0.155, 0.0, -0.045], [0.0, 0.19, 0.15, 0.0, -0.04],
 			[0.1, 0.19, 0.125, 0.0, -0.015], [0.18, 0.195, 0.108], [0.235, 0.17, 0.09], [0.27, 0.1, 0.07], [0.31, 0.055, 0.055]]
-	_mesh(chest, M.loft(torso, 20), torso_mat)
+	if str(look.get("torso", "")) == "quilted":
+		# A gambeson is thick: the padding fills out the chest and shoulders.
+		torso_mat = _mat("quilted", _c("gambeson", "#9a9078"))
+		var padded: Array = []
+		for sec in torso:
+			var t2: Array = sec.duplicate()
+			if float(t2[0]) < 0.26:
+				t2[1] = float(t2[1]) * 1.08
+				t2[2] = float(t2[2]) * 1.12
+			padded.append(t2)
+		torso = padded
+	_mesh(chest, M.loft(torso, 24), torso_mat)
 	_mesh(neck, M.loft([[-0.04, 0.052, 0.055], [0.04, 0.047, 0.05], [0.12, 0.045, 0.048, 0.0, 0.005]], 12), skin)
 
 	for side in [-1.0, 1.0]:
@@ -162,7 +176,7 @@ func _build_body() -> void:
 			[-0.12, 0.056, 0.06], [-0.22, 0.047, 0.05], [-0.31, 0.04, 0.043]], 14), upper_mat)
 		var fore: Array = [[0.03, 0.04, 0.042], [-0.07, 0.046, 0.048, 0.0, 0.004], [-0.17, 0.037, 0.036], [-0.255, 0.029, 0.025]]
 		_mesh(elbow, M.loft(fore, 14), fore_mat)
-		if fore_mat != skin and str(look.get("sleeves", "")) != "mail":
+		if fore_mat != skin and not (str(look.get("sleeves", "")) in ["mail", "quilted"]):
 			# Bare wrist below a cloth sleeve.
 			_mesh(elbow, M.loft([[-0.2, 0.031, 0.028], [-0.265, 0.028, 0.024]], 10), skin)
 		_build_hand(elbow, side, gloves)
@@ -176,13 +190,21 @@ func _build_body() -> void:
 func _build_hand(elbow: Node3D, side: float, material: Material) -> void:
 	var hand := _joint(elbow, Vector3(0, -0.255, -0.004))
 	hand.rotation = Vector3(0.12, 0, 0)
-	# Palm and fingers held together, slightly cupped.
-	# Palm faces the thigh, so the hand is narrow side to side and broad front to back.
-	_mesh(hand, M.loft([[0.01, 0.02, 0.027], [-0.03, 0.016, 0.038], [-0.07, 0.015, 0.04, -side * 0.002, 0.0],
-		[-0.1, 0.014, 0.036, -side * 0.006, 0.002], [-0.12, 0.011, 0.024, -side * 0.01, 0.004]], 12), material)
-	var thumb := _joint(hand, Vector3(-side * 0.006, -0.03, -0.03))
-	thumb.rotation = Vector3(0.35, 0, side * 0.25)
-	_mesh(thumb, M.loft([[0.0, 0.011, 0.012], [-0.035, 0.01, 0.01], [-0.055, 0.007, 0.007]], 8), material)
+	# Palm: the palm faces the thigh, so it is narrow side to side and broad front to back.
+	_mesh(hand, M.loft([[0.012, 0.02, 0.026], [-0.02, 0.017, 0.037], [-0.06, 0.015, 0.04], [-0.078, 0.013, 0.036]], 12), material)
+	# Four fingers, index at the front, each slightly curled toward the palm.
+	var lengths := [0.068, 0.074, 0.07, 0.056]
+	for i in 4:
+		var z := -0.027 + i * 0.018
+		var finger := _joint(hand, Vector3(side * 0.001, -0.07, z))
+		finger.rotation = Vector3((i - 1.5) * -0.04, 0, -side * (0.1 + i * 0.03))
+		var l: float = lengths[i]
+		var r := 0.0085 - i * 0.0006
+		_mesh(finger, M.loft([[0.006, r, r], [-l * 0.45, r * 0.95, r * 0.92, -side * 0.004, 0.0],
+			[-l * 0.85, r * 0.85, r * 0.8, -side * 0.011, 0.0], [-l, r * 0.6, r * 0.6, -side * 0.015, 0.0]], 8), material)
+	var thumb := _joint(hand, Vector3(-side * 0.006, -0.025, -0.03))
+	thumb.rotation = Vector3(0.45, 0, -side * 0.15)
+	_mesh(thumb, M.loft([[0.0, 0.012, 0.012], [-0.03, 0.0105, 0.0105], [-0.05, 0.009, 0.009], [-0.06, 0.006, 0.006]], 8), material)
 
 
 func _build_boot(knee: Node3D, material: Material) -> void:
@@ -227,7 +249,7 @@ func _build_head() -> void:
 	P.ellipsoid(mouth, Vector3.ZERO, Vector3(0.019, 0.0016, 0.006), P.m(Color(0.16, 0.07, 0.06), 0.5))
 
 	var headwear := str(look.get("headwear", "none"))
-	if headwear != "helmet" and headwear != "coif":
+	if not (headwear in ["helmet", "coif", "kettle_hat"]):
 		_mesh(face, M.shell("hair", 0.011), hair)
 	match beard:
 		"full":
@@ -243,8 +265,8 @@ func _build_head() -> void:
 			droop.rotation.z = sx * 0.3
 
 	match headwear:
-		"helmet", "coif":
-			_build_mail_hood(face, headwear == "helmet")
+		"helmet", "coif", "kettle_hat":
+			_build_mail_hood(face, headwear)
 		"crown":
 			var gold := _mat("rust_metal", _c("crown", "#9a7a3a"), 1.0, 0.75)
 			var band := P.torus(face, Vector3(0, 0.055, 0.004), 0.072, 0.086, gold)
@@ -259,14 +281,24 @@ func _build_head() -> void:
 			_mesh(face, M.shell("cap", 0.016), _mat("cloth", _c("cap", "#b9b09c")))
 
 
-func _build_mail_hood(face: Node3D, helmet: bool) -> void:
+func _build_mail_hood(face: Node3D, headwear: String) -> void:
 	var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
 	_mesh(face, M.shell("coif", 0.006), mail)
 	# Mail mantle over the shoulders.
 	_mesh(chest, M.loft([[0.37, 0.06, 0.065], [0.31, 0.08, 0.08], [0.26, 0.17, 0.11], [0.2, 0.23, 0.13], [0.14, 0.22, 0.135]], 20, [], [1.0, 0.85], 0.02), mail)
-	if not helmet:
+	if headwear == "coif":
 		return
 	var steel := _mat("rust_metal", _c("helmet", "#c8c0b4"), 1.0, 0.7)
+	if headwear == "kettle_hat":
+		# A kettle hat: a rounded iron crown with a broad, sloping brim.
+		_mesh(face, M.shell("helmet", 0.024), steel)
+		var brim := _joint(face, Vector3(0, 0.03, 0.004))
+		var steel2 := _two_sided_mat(steel)
+		_mesh(brim, M.loft([[0.012, 0.094, 0.114], [0.0, 0.12, 0.14], [-0.028, 0.155, 0.175], [-0.036, 0.158, 0.178]], 32, [], [1.0, 0.85], 0.0, false), steel2)
+		var rim := P.torus(brim, Vector3(0, -0.036, 0), 0.152, 0.164, steel)
+		rim.scale = Vector3(1.0, 0.6, 1.13)
+		P.ellipsoid(face, Vector3(0, 0.13, 0.004), Vector3(0.012, 0.006, 0.012), steel)
+		return
 	_mesh(face, M.shell("helmet", 0.02), steel)
 	var rim := P.torus(face, Vector3(0, 0.034, 0.006), 0.092, 0.104, steel)
 	rim.scale = Vector3(1.0, 0.8, 1.2)
@@ -280,6 +312,16 @@ func _build_costume() -> void:
 	var belt := _mat("leather", _c("belt", "#3a2a1e"))
 	var belt_y := 0.12
 	var waist := 0.168 if not _belly else 0.19
+	if look.has("gambeson"):
+		# The quilted skirts of the gambeson, split front and back for walking.
+		var quilt := _mat("quilted", _c("gambeson", "#9a9078"))
+		var gskirt := [[0.02, 0.185, 0.13], [-0.14, 0.2, 0.145], [-0.3, 0.208, 0.152]]
+		front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+		back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+		_mesh(front_panel, M.loft(gskirt, 16, [PI + 0.05, TAU - 0.05], [1.0, 0.7], 0.01, false), quilt, true)
+		_mesh(back_panel, M.loft(gskirt, 16, [0.05, PI - 0.05], [1.0, 0.7], 0.01, false), quilt, true)
+		_mesh(pelvis, M.loft([[0.14, 0.18, 0.125], [-0.0, 0.19, 0.132]], 20, [], [1.0, 1.0], 0.0, false), quilt)
+		waist = 0.19
 	if look.has("hauberk"):
 		var mail := _mat("chainmail", _c("mail", "#9a9690"), 0.55)
 		var skirt := [[0.0, 0.175, 0.122], [-0.18, 0.19, 0.135], [-0.34, 0.2, 0.145]]
@@ -299,8 +341,8 @@ func _build_costume() -> void:
 			back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
 		var fp := _joint(front_panel, Vector3.ZERO)
 		var bp := _joint(back_panel, Vector3.ZERO)
-		_mesh(fp, M.loft(hang, 8, [PI + 0.55, TAU - 0.55], [0.95, 0.45], 0.05, false, 0.3), coat, true)
-		_mesh(bp, M.loft(hang, 8, [0.55, PI - 0.55], [0.95, 0.45], 0.05, false, 0.3), coat, true)
+		_mesh(fp, M.loft(hang, 20, [PI + 0.55, TAU - 0.55], [0.95, 0.45], 0.05, false, 0.3, 0.06), coat, true)
+		_mesh(bp, M.loft(hang, 20, [0.55, PI - 0.55], [0.95, 0.45], 0.05, false, 0.3, 0.06), coat, true)
 		_mesh(pelvis, M.loft([[0.14, 0.175, 0.124], [0.0, 0.19, 0.13]], 18, [], [0.9, 0.9], 0.0, false), coat)
 		if look.has("emblem"):
 			# A faded, hand-stitched sun on the chest.
@@ -317,14 +359,14 @@ func _build_costume() -> void:
 	if look.has("robe"):
 		var robe_mat := _mat("wool", _c("robe", "#3d1a22"))
 		robe = _joint(pelvis, Vector3(0, 0.05, 0))
-		_mesh(robe, M.loft([[0.06, 0.18, 0.125], [-0.2, 0.22, 0.16], [-0.55, 0.26, 0.2], [-0.98, 0.3, 0.24]], 22, [], [1.0, 0.4], 0.03, false), robe_mat, true)
+		_mesh(robe, M.loft([[0.06, 0.18, 0.125], [-0.2, 0.22, 0.16], [-0.55, 0.26, 0.2], [-0.98, 0.3, 0.24]], 48, [], [1.0, 0.4], 0.03, false, 0.0, 0.07), robe_mat, true)
 		_mesh(robe, M.loft([[-0.91, 0.302, 0.242], [-0.99, 0.31, 0.25]], 22, [], [0.6, 0.45], 0.0, false), _mat("fur", _c("collar", "#8a7f70"), 0.4), true)
 	if look.has("collar"):
 		# A heavy fur mantle over the shoulders.
 		_mesh(chest, M.loft([[0.36, 0.07, 0.072], [0.3, 0.11, 0.1], [0.25, 0.215, 0.135], [0.17, 0.25, 0.155], [0.08, 0.235, 0.15]], 22, [], [1.0, 0.7], 0.03), _mat("fur", _c("collar", "#8a7f70"), 0.4))
 	if look.has("cape"):
 		cape = _joint(chest, Vector3(0, 0.22, 0.02))
-		_mesh(cape, M.loft([[0.04, 0.18, 0.12], [-0.3, 0.24, 0.17], [-0.8, 0.29, 0.23], [-1.32, 0.33, 0.27]], 14, [0.25, PI - 0.25], [0.95, 0.35], 0.04, false, 0.2), _mat("wool", _c("cape", "#4a1616")), true)
+		_mesh(cape, M.loft([[0.04, 0.18, 0.12], [-0.3, 0.24, 0.17], [-0.8, 0.29, 0.23], [-1.32, 0.33, 0.27]], 30, [0.25, PI - 0.25], [0.95, 0.35], 0.04, false, 0.2, 0.08), _mat("wool", _c("cape", "#4a1616")), true)
 	if look.has("apron"):
 		var apron := _mat("cloth", _c("apron", "#cfc6b0"))
 		var bib := [[0.17, 0.165, 0.1], [0.05, 0.2, 0.165, 0.0, -0.045], [-0.08, 0.2, 0.17, 0.0, -0.05], [-0.16, 0.18, 0.135, 0.0, -0.025]]
@@ -333,7 +375,7 @@ func _build_costume() -> void:
 		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.6), apron, true)
 		front_panel = _joint(pelvis, Vector3(0, 0.12, 0))
 		var skirt := [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.62, 0.22, 0.155]]
-		_mesh(front_panel, M.loft(skirt, 10, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7), apron, true)
+		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7, 0.05), apron, true)
 	# Belt and buckle.
 	_mesh(pelvis, M.loft([[belt_y + 0.025, waist + 0.008, waist * 0.7 + 0.01], [belt_y - 0.02, waist + 0.01, waist * 0.7 + 0.012]], 20), belt)
 	P.ellipsoid(pelvis, Vector3(0, belt_y, -waist * 0.7 - 0.016), Vector3(0.02, 0.022, 0.006), _mat("rust_metal", Color(0.75, 0.7, 0.62), 1.0, 0.7, 0.0, false))
@@ -341,6 +383,25 @@ func _build_costume() -> void:
 		P.ellipsoid(pelvis, Vector3(0.14, belt_y - 0.06, -0.08), Vector3(0.04, 0.05, 0.025), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
 	if str(look.get("weapon", "")) == "spear":
 		_build_spear()
+	if look.has("sword"):
+		_build_sword(belt_y, waist)
+
+
+## An arming sword in a leather scabbard hanging from the belt on the left hip.
+func _build_sword(belt_y: float, waist: float) -> void:
+	var hang := _joint(pelvis, Vector3(-waist - 0.025, belt_y - 0.03, 0.03))
+	hang.rotation = Vector3(-0.38, 0.0, -0.1)
+	var leather := _mat("leather", Color(0.2, 0.14, 0.1), 0.6)
+	var steel := _mat("rust_metal", Color(0.85, 0.82, 0.78), 0.5, 0.75)
+	# Scabbard: a flattened, tapering sheath with an iron chape at the tip.
+	_mesh(hang, M.loft([[0.0, 0.009, 0.026], [-0.4, 0.008, 0.022], [-0.78, 0.007, 0.016], [-0.82, 0.004, 0.006]], 10, [], [1.0, 0.8]), leather)
+	_mesh(hang, M.loft([[-0.73, 0.0085, 0.019], [-0.83, 0.005, 0.007]], 10), steel)
+	_mesh(hang, M.loft([[0.01, 0.011, 0.029], [-0.03, 0.011, 0.029]], 10), steel)
+	# Hilt: crossguard, leather-wrapped grip and a wheel pommel.
+	var guard := _mesh(hang, M.bevel_box(Vector3(0.012, 0.016, 0.18), 0.004), steel)
+	guard.position = Vector3(0, 0.02, 0)
+	_mesh(hang, M.loft([[0.13, 0.012, 0.014], [0.09, 0.014, 0.016], [0.03, 0.012, 0.014]], 8), leather)
+	P.ellipsoid(hang, Vector3(0, 0.15, 0), Vector3(0.012, 0.027, 0.027), steel)
 
 
 func _build_spear() -> void:
@@ -500,6 +561,15 @@ func _mesh(parent: Node, mesh: Mesh, material: Material, two_sided := false) -> 
 	mi.material_override = material
 	parent.add_child(mi)
 	return mi
+
+
+func _two_sided_mat(material: Material) -> Material:
+	var key := str(material.get_instance_id()) + "|2"
+	if not _materials.has(key):
+		var d := material.duplicate() as StandardMaterial3D
+		d.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_materials[key] = d
+	return _materials[key]
 
 
 func _c(key: String, fallback: String) -> Color:

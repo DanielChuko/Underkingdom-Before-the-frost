@@ -5,6 +5,7 @@ extends RefCounted
 
 const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
+const F := preload("res://scripts/world/furniture.gd")
 
 
 static func stone() -> Material:
@@ -100,19 +101,17 @@ static func rug(parent: Node, center: Vector3, size: Vector2, color: Color, bord
 	G.box(parent, Vector3(size.x - 0.2, 0.025, size.y - 0.2), center + Vector3(0, 0.012, 0), S.get_material("cloth", color, 0.8), false)
 
 
-## Table with legs; collision on the top only (and a solid block under it).
+## Trestle table, long axis along whichever of size.x / size.z is larger.
+## The top surface is at center.y + size.y.
 static func table(parent: Node, center: Vector3, size: Vector3, material: Material = null) -> void:
-	var m: Material = material if material != null else wood()
-	G.box(parent, Vector3(size.x, 0.08, size.z), center + Vector3(0, size.y - 0.04, 0), m)
-	for x in [-1.0, 1.0]:
-		for z in [-1.0, 1.0]:
-			G.box(parent, Vector3(0.09, size.y - 0.08, 0.09), center + Vector3(x * (size.x * 0.5 - 0.1), (size.y - 0.08) * 0.5, z * (size.z * 0.5 - 0.1)), wood_dark(), false)
-	G.solid(parent, Vector3(size.x, size.y, size.z), center + Vector3(0, size.y * 0.5, 0))
+	if size.z > size.x:
+		F.trestle_table(parent, center, Vector3(size.z, size.y, size.x), PI * 0.5, material)
+	else:
+		F.trestle_table(parent, center, size, 0.0, material)
 
 
 static func bench(parent: Node, center: Vector3, length: float, axis := "z") -> void:
-	var size := Vector3(0.4, 0.45, length) if axis == "z" else Vector3(length, 0.45, 0.4)
-	table(parent, center, size, wood_dark())
+	F.bench(parent, center, length, PI * 0.5 if axis == "z" else 0.0)
 
 
 ## Wall shelf with books or jars. normal points out of the wall.

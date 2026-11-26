@@ -18,6 +18,7 @@ const NpcScript := preload("res://scripts/world/npc.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const D := preload("res://scripts/world/decor.gd")
 const P := preload("res://scripts/world/props.gd")
+const F := preload("res://scripts/world/furniture.gd")
 
 const CORRIDOR_H := 4.0
 const CORRIDOR_C_H := 5.0
@@ -173,12 +174,8 @@ func _kings_hall() -> void:
 	_crest(Vector3(12.5, 5.8, -57.8), 3.0, 0.0)
 
 	# Throne under the crest.
-	var throne := G.mat(Color(0.35, 0.12, 0.12))
 	G.box(root, Vector3(2.0, 0.4, 1.8), Vector3(12.5, 0.2, -55.9), stone_dark)
-	G.box(root, Vector3(1.1, 0.5, 0.9), Vector3(12.5, 0.65, -55.9), throne)
-	G.box(root, Vector3(1.2, 2.4, 0.2), Vector3(12.5, 1.6, -56.5), throne)
-	G.box(root, Vector3(0.15, 0.5, 0.9), Vector3(11.95, 1.05, -55.9), gold, false)
-	G.box(root, Vector3(0.15, 0.5, 0.9), Vector3(13.05, 1.05, -55.9), gold, false)
+	F.throne(root, Vector3(12.5, 0.4, -55.95), PI, Color(0.42, 0.08, 0.1))
 
 	# Red banners bearing the crest on both side walls.
 	for z in [-38.0, -44.0, -50.0]:
@@ -223,11 +220,8 @@ func _player_room() -> void:
 	room_door.locked_message = "Locked. Someone's private chamber, no doubt."
 
 	# Bed against the south wall.
-	G.box(root, Vector3(2.0, 0.45, 1.1), Vector3(-6.4, 0.225, -4.75), wood_dark)
-	G.box(root, Vector3(1.9, 0.15, 1.0), Vector3(-6.4, 0.52, -4.75), S.get_material("cloth", Color(0.88, 0.85, 0.78), 0.8), false)
-	G.box(root, Vector3(0.45, 0.12, 0.75), Vector3(-7.1, 0.65, -4.75), S.get_material("cloth", Color(0.95, 0.95, 0.92), 0.8), false)
-	G.box(root, Vector3(1.3, 0.06, 1.04), Vector3(-5.95, 0.61, -4.75), S.get_material("cloth", Color(0.25, 0.33, 0.55), 0.8), false)
-	G.prop(root, Vector3(2.0, 0.7, 1.1), Vector3(-6.4, 0.35, -4.75), null, "Look at the bed", "Your bed. You slept like a stone after the feast.")
+	F.bed(root, Vector3(-6.4, 0, -4.7), 0.0, 2.0, 1.1, Color(0.3, 0.34, 0.46))
+	G.prop(root, Vector3(2.0, 0.7, 1.1), Vector3(-6.4, 0.35, -4.7), null, "Look at the bed", "Your bed. You slept like a stone after the feast.")
 
 	# Window on the west wall: bright daylight.
 	var daylight := G.mat(Color(0.92, 0.96, 1.0), 3.0)
@@ -250,15 +244,12 @@ func _player_room() -> void:
 		G.dust(root, Vector3(-4.5, 1.6, -7.0), Vector3(2.6, 1.3, 2.6), 90)
 
 	# Writing table with a lit candle, and a chair.
-	G.box(root, Vector3(1.2, 0.06, 0.7), Vector3(-2.6, 0.75, -9.3), wood)
-	for off in [Vector2(-0.5, -0.28), Vector2(0.5, -0.28), Vector2(-0.5, 0.28), Vector2(0.5, 0.28)]:
-		G.box(root, Vector3(0.06, 0.72, 0.06), Vector3(-2.6 + off.x, 0.36, -9.3 + off.y), wood_dark, false)
+	F.joined_table(root, Vector3(-2.6, 0, -9.3), Vector3(1.2, 0.78, 0.7))
 	P.candle_holder(root, Vector3(-2.3, 0.78, -9.45))
 	P.inkwell_and_quill(root, Vector3(-2.75, 0.78, -9.5))
 	P.book_stack(root, Vector3(-3.0, 0.78, -9.2), 3)
 	G.light(root, Vector3(-2.3, 1.15, -9.2), Color(1.0, 0.75, 0.45), 1.2, 5.0, true, 0.12)
-	G.box(root, Vector3(0.45, 0.05, 0.45), Vector3(-2.6, 0.45, -8.5), wood)
-	G.box(root, Vector3(0.45, 0.6, 0.05), Vector3(-2.6, 0.75, -8.28), wood)
+	F.chair(root, Vector3(-2.55, 0, -8.45), 0.08)
 
 	# Mirror on the north wall.
 	G.box(root, Vector3(0.85, 1.45, 0.03), Vector3(-4.6, 1.6, -9.84), wood_dark, false)
@@ -266,8 +257,7 @@ func _player_room() -> void:
 	G.prop(root, Vector3(0.85, 1.45, 0.2), Vector3(-4.6, 1.6, -9.75), null, "Look in the mirror", "Casimir Vael of Hollowmere looks back at you, well rested at last.")
 
 	# Small table with a pot and a single flower (blooming in Act 1; it withers act by act).
-	G.box(root, Vector3(0.5, 0.04, 0.5), Vector3(-6.9, 0.7, -9.4), wood)
-	G.box(root, Vector3(0.06, 0.7, 0.06), Vector3(-6.9, 0.35, -9.4), wood_dark, false)
+	F.round_table(root, Vector3(-6.9, 0, -9.4), 0.26, 0.72)
 	P.potted_flower(root, Vector3(-6.9, 0.72, -9.4), 0.0)
 	G.prop(root, Vector3(0.5, 0.9, 0.5), Vector3(-6.9, 0.85, -9.4), null, "Look at the flower", "A single flower, in full bloom.")
 
@@ -302,6 +292,8 @@ func _kitchen() -> void:
 	var top := 0.89
 	P.knife_stuck(root, Vector3(4.95, top, -8.35), 0.4, 0.28)
 	P.cutting_board(root, Vector3(5.85, top, -8.55), 0.1)
+	F.stool(root, Vector3(8.95, 0, -8.2))
+	F.stool(root, Vector3(2.25, 0, -10.6))
 	P.roast(root, Vector3(5.8, top + 0.03, -8.55), 0.1)
 	P.bread(root, Vector3(4.55, top, -8.85), 0.6)
 	P.cheese(root, Vector3(6.45, top, -8.15))
@@ -465,8 +457,7 @@ func _dressing() -> void:
 
 	# Casimir's room: rug, chest, shelf of books.
 	D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))
-	G.box(root, Vector3(0.5, 0.45, 0.95), Vector3(-5.05, 0.225, -4.75), wood_dark)
-	G.box(root, Vector3(0.52, 0.06, 0.97), Vector3(-5.05, 0.46, -4.75), D.iron(), false)
+	F.chest(root, Vector3(-5.07, 0, -4.75), -PI * 0.5, Vector3(0.95, 0.48, 0.5))
 	D.shelf(root, Vector3(-2.6, 0.75, -9.85), Vector3(0, 0, 1), 1.2, 2, 7)
 
 	# Kitchen: barrels, sacks, a crate and a shelf of jars.
