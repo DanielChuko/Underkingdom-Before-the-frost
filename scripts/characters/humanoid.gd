@@ -77,6 +77,7 @@ var _gesture := 0.0
 var _slouch := 0.0
 var _belly := false
 var _pelvis_y := HIP_HEIGHT + 0.02
+var _sit_y := 0.55
 ## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
 var _face_mi: MeshInstance3D
 var _blink := 0.0
@@ -113,6 +114,8 @@ func build(look_id: String) -> void:
 		rig[k] = model_rig[k]
 	var p: Vector3 = rig["pelvis"]
 	_pelvis_y = p.y
+	# Seated, the pelvis sits just above knee height so the feet reach the floor.
+	_sit_y = maxf(float(rig["l_knee"].y) + 0.04, 0.52)
 	pelvis = _joint(self, p)
 	chest = _joint(pelvis, rig["chest"] - p)
 	neck = _joint(chest, rig["neck"] - rig["chest"])
@@ -185,7 +188,9 @@ func _build_from_model(path: String) -> void:
 		return
 	front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
 	back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+	cape = _joint(chest, Vector3.ZERO)
 	var joints := {
+		"cape": cape,
 		"pelvis": pelvis, "chest": chest, "neck": neck, "head": head,
 		"front_panel": front_panel, "back_panel": back_panel,
 		"l_shoulder": l_shoulder, "r_shoulder": r_shoulder, "l_elbow": l_elbow, "r_elbow": r_elbow,
@@ -591,7 +596,7 @@ func _animate_stand(delta: float) -> void:
 
 func _animate_sit() -> void:
 	var breath := sin(_time * 1.2)
-	pelvis.position = Vector3(0, 0.55, 0.0)
+	pelvis.position = Vector3(0, _sit_y, 0.0)
 	pelvis.rotation = Vector3.ZERO
 	chest.rotation = Vector3(0.05 + breath * 0.01, 0, 0.02)
 	for hip in [l_hip, r_hip]:

@@ -99,7 +99,8 @@
     "headwear": "crown",
     "slouch": 0.1,
     "gesture_arm": "right",
-    "face": "old"
+    "face": "old",
+    "model": "res://assets/models/medieval_king_rigged.glb"
   },
   "cook": {
     "skin": "#b8846a",

@@ -135,17 +135,25 @@ def classify(name):
     if s:
         if "sleeve" in n or "upper arm" in n or "shoulder" in n:
             return s + "_upper"
-        if any(k in n for k in ("cuff", "forearm", "vambrace", "glove", "gauntlet", "hand")):
+        if any(k in n for k in ("sabaton", "boot", "shoe", "foot", "welt")):
+            return s + "_foot"
+        if any(k in n for k in ("cuff", "forearm", "vambrace", "glove", "gauntlet", "hand", "finger", "thumb")):
             return s + "_fore"
         if any(k in n for k in ("chausses", "leg", "hose", "trouser")):
             return s + "_leg"
-        if any(k in n for k in ("sabaton", "boot", "shoe", "foot")):
+        if any(k in n for k in ("sabaton", "boot", "shoe", "foot", "welt")):
             return s + "_foot"
     if "skirt" in n or "tunic panel" in n:
         return "skirt"
-    if "belt" in n or "pouch" in n:
+    if any(k in n for k in ("belt", "pouch", "girdle", "buckle", "eyelet")):
         return "pelvis"
-    if any(k in n for k in ("coat", "hauberk", "surcoat", "gambeson", "torso")):
+    if n == "neck":
+        return "neck"
+    if "mantle" in n and "shoulder" not in n and "clasp" not in n:
+        return "cape"
+    if any(k in n for k in ("collar link", "clasp", "pendant", "shoulder mantle", "linen collar")):
+        return "chest"
+    if any(k in n for k in ("coat", "hauberk", "surcoat", "gambeson", "torso", "tunic")):
         return "chest"
     return "head"
 
@@ -180,18 +188,27 @@ def main(src, dst):
 
     # --- The model's own joints ------------------------------------------------------
     joints = {}
+    one_piece_arm = set()
     for s in ("l", "r"):
         up, leg, foot = pts(s + "_upper"), pts(s + "_leg"), pts(s + "_foot")
         # The forearm without the hand: the wrist is where the glove begins.
-        fore = pts(s + "_fore", skip=("glove", "gauntlet", "hand"))
+        fore = pts(s + "_fore", skip=("glove", "gauntlet", "hand", "finger", "thumb", "cuff"))
         s_top, s_bot = axis_ends(up)
-        f_top, f_bot = axis_ends(fore)
         joints[s + "_shoulder"] = s_top
-        joints[s + "_elbow"] = (s_bot + f_top) * 0.5
-        joints[s + "_wrist"] = f_bot
+        if fore is not None:
+            f_top, f_bot = axis_ends(fore)
+            joints[s + "_elbow"] = (s_bot + f_top) * 0.5
+            joints[s + "_wrist"] = f_bot
+        else:
+            # One-piece sleeve from shoulder to wrist: it is split at the elbow.
+            joints[s + "_elbow"] = s_top + (s_bot - s_top) * 0.52
+            joints[s + "_wrist"] = s_bot
+            one_piece_arm.add(s)
         l_top, l_bot = axis_ends(leg, inset=0.3)
         hip = l_top + np.array([0.0, 0.07, 0.0])  # the hip joint sits up inside the skirt
-        ankle = l_bot
+        ankle = l_bot.copy()
+        # Hose that stops inside a tall boot: the ankle is just above the sole.
+        ankle[1] = min(ankle[1], foot[:, 1].min() + 0.13)
         joints[s + "_hip"] = hip
         joints[s + "_knee"] = (hip + ankle) * 0.5 + np.array([0.0, 0.0, -0.01])
         joints[s + "_ankle"] = ankle
@@ -206,6 +223,7 @@ def main(src, dst):
     joints["head"] = np.array([0.0, chin_y + 0.03, 0.0])
     joints["front_panel"] = joints["pelvis"] + np.array([0.0, -0.02, 0.0])
     joints["back_panel"] = joints["front_panel"]
+    joints["cape"] = joints["chest"]
 
     # --- Re-express every part in its joint's space ----------------------------------
     w = Writer()
@@ -213,6 +231,8 @@ def main(src, dst):
     out_meshes = []
 
     def emit(name, joint, pos, part, faces, rot=None, translation=None):
+        if len(faces) == 0:
+            return
         used = np.unique(faces)
         remap = np.full(len(pos), -1, dtype=np.int64)
         remap[used] = np.arange(len(used))
@@ -239,7 +259,16 @@ def main(src, dst):
         kind = classify(p["name"])
         faces = p["idx"].reshape(-1, 3)
         v = p["pos"]
-        if kind.endswith(("_upper", "_fore")):
+        if kind.endswith("_upper") and kind[0] in one_piece_arm:
+            s = kind[0]
+            sh, el, wr = joints[s + "_shoulder"], joints[s + "_elbow"], joints[s + "_wrist"]
+            r_up = rotation_to(el - sh, np.array([0.0, -1.0, 0.0]))
+            r_fo = rotation_to(wr - el, np.array([0.0, -1.0, 0.0]))
+            cy = v[faces].mean(axis=1)[:, 1]
+            band = 0.02
+            emit(p["name"] + " upper", s + "_shoulder", (v - sh) @ r_up.T, p, faces[cy > el[1] - band], r_up)
+            emit(p["name"] + " lower", s + "_elbow", (v - el) @ r_fo.T, p, faces[cy < el[1] + band], r_fo)
+        elif kind.endswith(("_upper", "_fore")):
             s = kind[0]
             top = joints[s + "_shoulder"] if kind.endswith("_upper") else joints[s + "_elbow"]
             end = joints[s + "_elbow"] if kind.endswith("_upper") else joints[s + "_wrist"]
@@ -265,6 +294,22 @@ def main(src, dst):
             origin = joints["front_panel"]
             emit(p["name"] + " front", "front_panel", v - origin, p, faces[cz <= 0.0])
             emit(p["name"] + " back", "back_panel", v - origin, p, faces[cz > 0.0])
+        elif "hem" in p["name"].lower() and v[:, 1].max() < joints["pelvis"][1] - 0.12:
+            cz = v[faces].mean(axis=1)[:, 2]
+            origin = joints["front_panel"]
+            emit(p["name"] + " front", "front_panel", v - origin, p, faces[cz <= 0.0])
+            emit(p["name"] + " back", "back_panel", v - origin, p, faces[cz > 0.0])
+        elif kind == "chest" and v[:, 1].min() < joints["pelvis"][1] - 0.12:
+            # A long garment: the body stays on the chest, the skirt below the
+            # hips splits into front and back panels that swing with the legs.
+            cen = v[faces].mean(axis=1)
+            cut = joints["pelvis"][1] - 0.04
+            top = cen[:, 1] > cut - 0.02
+            emit(p["name"] + " body", "chest", v - joints["chest"], p, faces[top])
+            low = cen[:, 1] < cut + 0.02
+            origin = joints["front_panel"]
+            emit(p["name"] + " front", "front_panel", v - origin, p, faces[low & (cen[:, 2] <= 0.0)])
+            emit(p["name"] + " back", "back_panel", v - origin, p, faces[low & (cen[:, 2] > 0.0)])
         else:
             joint = kind
             origin = joints[joint]
