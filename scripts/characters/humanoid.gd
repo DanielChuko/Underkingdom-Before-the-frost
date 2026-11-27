@@ -76,6 +76,11 @@ var _head_pitch := 0.0
 var _gesture := 0.0
 var _slouch := 0.0
 var _belly := false
+var _pelvis_y := HIP_HEIGHT + 0.02
+## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
+var _face_mi: MeshInstance3D
+var _blink := 0.0
+var _next_blink := 2.0
 
 
 static func load_look(look_id: String) -> Dictionary:
@@ -99,20 +104,29 @@ func build(look_id: String) -> void:
 	_belly = bool(look.get("belly", false))
 
 	# --- Skeleton -------------------------------------------------------------
-	pelvis = _joint(self, Vector3(0, HIP_HEIGHT + 0.02, 0))
-	chest = _joint(pelvis, Vector3(0, 0.28, 0))
-	neck = _joint(chest, Vector3(0, 0.25, 0))
-	head = _joint(neck, Vector3(0, 0.09, 0))
-	l_shoulder = _joint(chest, Vector3(-0.2, 0.19, 0))
-	r_shoulder = _joint(chest, Vector3(0.2, 0.19, 0))
-	l_elbow = _joint(l_shoulder, Vector3(0, -0.29, 0))
-	r_elbow = _joint(r_shoulder, Vector3(0, -0.29, 0))
-	l_hip = _joint(pelvis, Vector3(-0.095, -0.02, 0))
-	r_hip = _joint(pelvis, Vector3(0.095, -0.02, 0))
-	l_knee = _joint(l_hip, Vector3(0, -0.44, 0))
-	r_knee = _joint(r_hip, Vector3(0, -0.44, 0))
-
+	# Joint positions in the rest pose, feet at the origin. An imported model
+	# brings its own proportions (written by tools/rig_model_v2.py).
 	var model_path := str(look.get("model", ""))
+	var rig := _default_rig()
+	var model_rig := _load_rig(model_path)
+	for k in model_rig:
+		rig[k] = model_rig[k]
+	var p: Vector3 = rig["pelvis"]
+	_pelvis_y = p.y
+	pelvis = _joint(self, p)
+	chest = _joint(pelvis, rig["chest"] - p)
+	neck = _joint(chest, rig["neck"] - rig["chest"])
+	head = _joint(neck, rig["head"] - rig["neck"])
+	l_shoulder = _joint(chest, rig["l_shoulder"] - rig["chest"])
+	r_shoulder = _joint(chest, rig["r_shoulder"] - rig["chest"])
+	# Limbs hang straight down from each joint at rest.
+	l_elbow = _joint(l_shoulder, Vector3(0, -rig["l_shoulder"].distance_to(rig["l_elbow"]), 0))
+	r_elbow = _joint(r_shoulder, Vector3(0, -rig["r_shoulder"].distance_to(rig["r_elbow"]), 0))
+	l_hip = _joint(pelvis, rig["l_hip"] - p)
+	r_hip = _joint(pelvis, rig["r_hip"] - p)
+	l_knee = _joint(l_hip, Vector3(0, -rig["l_hip"].distance_to(rig["l_knee"]), 0))
+	r_knee = _joint(r_hip, Vector3(0, -rig["r_hip"].distance_to(rig["r_knee"]), 0))
+
 	if model_path != "" and ResourceLoader.exists(model_path):
 		_build_from_model(model_path)
 		if str(look.get("weapon", "")) == "spear":
@@ -129,6 +143,36 @@ func speak(duration: float) -> void:
 
 
 # --- Imported models ------------------------------------------------------------------
+
+func _default_rig() -> Dictionary:
+	var hip := HIP_HEIGHT + 0.02
+	return {
+		"pelvis": Vector3(0, hip, 0), "chest": Vector3(0, hip + 0.28, 0),
+		"neck": Vector3(0, hip + 0.53, 0), "head": Vector3(0, hip + 0.62, 0),
+		"l_shoulder": Vector3(-0.2, hip + 0.47, 0), "r_shoulder": Vector3(0.2, hip + 0.47, 0),
+		"l_elbow": Vector3(-0.2, hip + 0.18, 0), "r_elbow": Vector3(0.2, hip + 0.18, 0),
+		"l_hip": Vector3(-0.095, hip - 0.02, 0), "r_hip": Vector3(0.095, hip - 0.02, 0),
+		"l_knee": Vector3(-0.095, hip - 0.46, 0), "r_knee": Vector3(0.095, hip - 0.46, 0),
+	}
+
+
+## Joint positions saved next to an imported model as <model>.rig.json.
+func _load_rig(model_path: String) -> Dictionary:
+	var out := {}
+	if model_path == "":
+		return out
+	var f := FileAccess.open(model_path.get_basename() + ".rig.json", FileAccess.READ)
+	if f == null:
+		return out
+	var data = JSON.parse_string(f.get_as_text())
+	if typeof(data) != TYPE_DICTIONARY:
+		return out
+	for k in data:
+		var v = data[k]
+		if typeof(v) == TYPE_ARRAY and v.size() == 3:
+			out[k] = Vector3(float(v[0]), float(v[1]), float(v[2]))
+	return out
+
 
 ## Dresses the rig in a multi-part model prepared by tools/rig_model.py: every
 ## part is a node named "<joint>__<part>" whose geometry is already in that
@@ -158,8 +202,12 @@ func _build_from_model(path: String) -> void:
 		var joint: Node3D = joints[bits[0]]
 		joint.add_child(mi)
 		mi.transform = local
-		if bits[1] == "Mouth":
+		if mi.mesh != null and mi.mesh.get_blend_shape_count() > 0:
+			_face_mi = mi
+		elif bits[1] == "Mouth" and _face_mi == null:
 			mouth = mi
+	if _face_mi != null:
+		mouth = null
 	inst.free()
 
 
@@ -518,7 +566,7 @@ func _animate_stand(delta: float) -> void:
 	var idle := 1.0 - _walk
 
 	# Heavy steps: the body drops onto each foot, and idles with its weight on one leg.
-	pelvis.position.y = HIP_HEIGHT + 0.02 - 0.035 * _walk + absf(c) * 0.025 * _walk - 0.012 * idle
+	pelvis.position.y = _pelvis_y - 0.035 * _walk + absf(c) * 0.025 * _walk - 0.012 * idle
 	pelvis.position.x = sway * 0.018 * idle
 	pelvis.rotation = Vector3(0.0, s * 0.07 * _walk, sway * 0.035 * idle + c * 0.025 * _walk)
 	chest.rotation = Vector3(0.06 * _walk + _slouch + breath * 0.012, -s * 0.09 * _walk, -sway * 0.03 * idle - c * 0.02 * _walk)
@@ -594,6 +642,31 @@ func _animate_head(delta: float) -> void:
 		if _talk > 0.0:
 			open = absf(sin(_time * 12.0)) * 0.7 + absf(sin(_time * 6.7)) * 0.3
 		mouth.scale = Vector3(1.0 - open * 0.15, 1.0 + open * 3.5, 1.0)
+	if _face_mi != null:
+		_animate_face(delta)
+
+
+## Speech and blinking on an imported face's blend shapes.
+func _animate_face(delta: float) -> void:
+	var jaw := 0.0
+	var wide := 0.0
+	if _talk > 0.0:
+		jaw = absf(sin(_time * 11.0)) * 0.45 + absf(sin(_time * 6.3)) * 0.25
+		wide = maxf(0.0, sin(_time * 4.1)) * 0.3
+	_next_blink -= delta
+	if _next_blink <= 0.0:
+		_blink = 0.16
+		_next_blink = randf_range(2.5, 6.0)
+	_blink = maxf(_blink - delta, 0.0)
+	_set_shape("jawOpen", jaw)
+	_set_shape("mouthWide", wide)
+	_set_shape("eyeBlink", 1.0 - absf(_blink - 0.08) / 0.08 if _blink > 0.0 else 0.0)
+
+
+func _set_shape(shape_name: String, value: float) -> void:
+	var i := _face_mi.find_blend_shape_by_name(shape_name)
+	if i >= 0:
+		_face_mi.set_blend_shape_value(i, value)
 
 
 func _animate_layers() -> void:
