@@ -273,6 +273,15 @@ static func throne(parent: Node, pos: Vector3, yaw := 0.0, cushion := Color(0.42
 	return n
 
 
+## A low footstool with a cushion, for a seated king's feet.
+static func footstool(parent: Node, pos: Vector3, yaw := 0.0, cushion := Color(0.42, 0.08, 0.1)) -> Node3D:
+	var n := _node(parent, pos, yaw)
+	var oak := S.get_material("wood_dark", Color(0.75, 0.62, 0.55), 1.2, false)
+	_b(n, Vector3(0.62, 0.11, 0.32), Vector3(0, 0.055, 0), oak, 0.012)
+	_mesh(n, M.cushion(Vector3(0.56, 0.07, 0.28), 0.35, 0.01, 0.0), Vector3(0, 0.14, 0), _cloth("wool", cushion, 0.4))
+	return n
+
+
 # --- Helpers --------------------------------------------------------------------------
 
 static func _node(parent: Node, pos: Vector3, yaw: float) -> Node3D:

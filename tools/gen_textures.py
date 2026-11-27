@@ -435,6 +435,49 @@ def surcoat_sun(seed=18):
     save("surcoat_sun", col, height, 0.93 - device * 0.08, 0.2)
 
 
+def apron_bloody(seed=19):
+    """The cook's long linen apron (mapped by UV, u across, v down): coarse
+    off-white linen gone grey-brown with use, splashed and smeared with old
+    blood across the chest and lap, grease spots, a sewn-on patch, and grime
+    darkening toward the hem."""
+    rng = np.random.default_rng(seed)
+    yy, xx = np.mgrid[0:SIZE, 0:SIZE].astype(float) / SIZE
+    threads = 95
+    weave = 0.5 + 0.25 * np.sin(xx * threads * 2 * np.pi) + 0.25 * np.sin(yy * threads * 2 * np.pi)
+    slub = fractal_noise(rng, beta=1.6, stretch=(1.0, 25.0))
+    dirt = fractal_noise(rng, beta=2.6)
+    blood = np.zeros((SIZE, SIZE))
+    # Splashes: a blob with a spray of droplets flung away from it.
+    for _ in range(14):
+        cx, cy = rng.uniform(0.2, 0.8), rng.uniform(0.12, 0.75)
+        r0 = rng.uniform(0.008, 0.03)
+        blood = np.maximum(blood, np.clip(1.0 - np.hypot(xx - cx, (yy - cy) * 0.8) / r0, 0, 1) ** 0.4)
+        a = rng.uniform(0, 2 * np.pi)
+        for _ in range(rng.integers(6, 18)):
+            d = rng.uniform(0.01, 0.09)
+            ang = a + rng.normal(0, 0.5)
+            px, py = cx + np.cos(ang) * d, cy + np.sin(ang) * d
+            r = rng.uniform(0.002, 0.008)
+            blood = np.maximum(blood, np.clip(1.0 - np.hypot(xx - px, yy - py) / r, 0, 1) ** 0.5)
+    # Wiped hands: long faded smears down the lap.
+    for _ in range(5):
+        cx, cy = rng.uniform(0.3, 0.7), rng.uniform(0.45, 0.7)
+        sm = np.exp(-((xx - cx) / 0.035) ** 2 - ((yy - cy) / 0.12) ** 2)
+        blood = np.maximum(blood, sm * rng.uniform(0.25, 0.45))
+    blood *= 0.75 + 0.25 * fractal_noise(rng, beta=1.4)
+    grease = np.clip(fractal_noise(rng, beta=2.2) - 0.62, 0, 1) * 2.5
+    patch = (np.abs(xx - 0.78) < 0.07) & (np.abs(yy - 0.8) < 0.06)
+    base = np.array([0.74, 0.69, 0.6])
+    lum = 1.0 + (weave - 0.5) * 0.1 + (slub - 0.5) * 0.12
+    lum -= np.clip(dirt - 0.45, 0, 1) * 0.5 + yy ** 2.5 * 0.35 + grease * 0.18
+    col = base[None, None, :] * lum[..., None]
+    col[patch] *= np.array([0.92, 0.86, 0.78])
+    red = np.array([0.42, 0.06, 0.05])
+    col = col * (1 - blood[..., None]) + (red[None, None, :] * (0.8 + 0.2 * lum[..., None])) * blood[..., None]
+    height = weave * 3.0 + slub * 2.0 - blood * 0.5 + patch * 1.5
+    save("apron_bloody", col, height, 0.94 - blood * 0.25 - grease * 0.1, 0.2)
+
+
 if __name__ == "__main__":
     stone_wall()
     flagstone()
@@ -452,3 +495,4 @@ if __name__ == "__main__":
     fur()
     quilted()
     surcoat_sun()
+    apron_bloody()

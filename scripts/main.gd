@@ -139,9 +139,9 @@ func _use_interior_environment() -> void:
 	# near darkness, with a cold tint in the shadows.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.4, 0.42, 0.5)
-	env.ambient_light_energy = 0.06 if GameState.act == 0 else 0.1
+	env.ambient_light_energy = 0.09 if GameState.act == 0 else 0.14
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.0
+	env.tonemap_exposure = 1.08
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.75

@@ -10,11 +10,14 @@ const FlickerScript := preload("res://scripts/world/flicker_light.gd")
 const HumanoidScript := preload("res://scripts/characters/humanoid.gd")
 
 const WALL_THICKNESS := 0.3
+## Render layer carrying the characters, lit by their own fill lights.
+const CHARACTER_LAYER := 2
 
 static var _flame_material: StandardMaterial3D
 static var _dust_material: StandardMaterial3D
 static var _grime_material: StandardMaterial3D
 static var _soot_material: StandardMaterial3D
+static var _torch_iron_material: StandardMaterial3D
 
 
 static func mat(color: Color, emission_energy := 0.0, metallic := 0.0, roughness := 0.9) -> StandardMaterial3D:
@@ -253,19 +256,94 @@ static func door(parent: Node, hinge: Vector3, along: Vector3, open_into: Vector
 	return d
 
 
-## Wall torch: iron bracket, wooden handle, particle flame and a flickering light.
-static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, light_range := 9.0, shadows := true) -> void:
-	var iron := mat(Color(0.12, 0.11, 0.1), 0.0, 0.7, 0.45)
-	var handle := mat(Color(0.3, 0.2, 0.12))
-	box(parent, Vector3(0.14, 0.05, 0.14), pos + facing * 0.06 + Vector3(0, -0.12, 0), iron, false)
-	box(parent, Vector3(0.05, 0.05, 0.05), pos + facing * 0.03, iron, false)
-	var stick := box(parent, Vector3(0.07, 0.5, 0.07), pos + facing * 0.14 + Vector3(0, 0.05, 0), handle, false)
-	stick.rotation = Vector3(facing.z, 0, -facing.x) * 0.25
-	box(parent, Vector3(0.11, 0.1, 0.11), pos + facing * 0.19 + Vector3(0, 0.3, 0), iron, false)
-	flame(parent, pos + facing * 0.2 + Vector3(0, 0.38, 0), 1.0)
+## Wall torch: a riveted iron wall plate with pointed ends, an arm and a
+## scrolled brace holding a collar, a tapering wooden torch bound with
+## leather strips and an iron ferrule, an open iron cage of glowing coals at
+## the top, a particle flame and a flickering light. `pos` is on the wall
+## surface; `facing` points out of the wall.
+static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, light_range := 9.0, shadows := true) -> Node3D:
+	var t := Node3D.new()
+	t.position = pos
+	t.rotation.y = atan2(facing.x, facing.z)
+	parent.add_child(t)
+	var iron := _torch_iron()
+	# Wall plate with pointed ends and rivets.
+	box(t, Vector3(0.06, 0.42, 0.016), Vector3(0, -0.03, 0.008), iron, false)
+	for y in [0.18, -0.24]:
+		var tip := box(t, Vector3(0.043, 0.043, 0.016), Vector3(0, y, 0.008), iron, false)
+		tip.rotation.z = PI * 0.25
+	for y in [0.13, -0.2]:
+		sphere(t, 0.009, Vector3(0, y, 0.018), iron)
+	# Arm out to the collar, on a riveted saddle plate.
+	box(t, Vector3(0.05, 0.1, 0.018), Vector3(0, 0.0, 0.022), iron, false)
+	box(t, Vector3(0.028, 0.03, 0.2), Vector3(0, 0.0, 0.12), iron, false)
+	for y in [0.03, -0.03]:
+		sphere(t, 0.008, Vector3(0, y, 0.033), iron)
+	# Scrolled brace from low on the plate up under the collar, with a curl.
+	var prev := Vector3(0, -0.17, 0.02)
+	for i in range(1, 8):
+		var a := float(i) / 7.0 * PI * 0.5
+		var p := Vector3(0, -0.17 + sin(a) * 0.15, 0.02 + (1.0 - cos(a)) * 0.19)
+		var seg := box(t, Vector3(0.016, 0.016, prev.distance_to(p) + 0.01), (prev + p) * 0.5, iron, false)
+		seg.rotation.x = -atan2(p.y - prev.y, p.z - prev.z)
+		prev = p
+	var curl := torus_ring(t, Vector3(0, -0.185, 0.04), 0.01, 0.02, iron)
+	curl.rotation.z = PI * 0.5
+
+	# The torch, leaning out from the wall, held by the collar.
+	var h := Node3D.new()
+	h.position = Vector3(0, 0.0, 0.235)
+	h.rotation.x = 0.22
+	t.add_child(h)
+	var collar := torus_ring(h, Vector3.ZERO, 0.027, 0.042, iron)
+	collar.scale = Vector3(1.0, 1.6, 1.0)
+	var wood := mat(Color(0.33, 0.24, 0.16), 0.0, 0.0, 0.85)
+	cylinder(h, 0.021, 0.52, Vector3(0, -0.06, 0), wood, 0.03)
+	var strap := mat(Color(0.3, 0.13, 0.09), 0.0, 0.0, 0.7)
+	for y in [0.1, -0.17]:
+		var w := cylinder(h, 0.029 - (0.2 - y) * 0.01, 0.04, Vector3(0, y, 0), strap)
+		w.rotation.z = 0.25
+	cylinder(h, 0.025, 0.055, Vector3(0, -0.3, 0), iron, 0.023)
+	cylinder(h, 0.002, 0.03, Vector3(0, -0.34, 0), iron, 0.016)
+	# Open cage of bars between two rings, full of glowing coals.
+	torus_ring(h, Vector3(0, 0.205, 0), 0.04, 0.05, iron)
+	torus_ring(h, Vector3(0, 0.335, 0), 0.066, 0.076, iron)
+	for i in 6:
+		var a := TAU * i / 6.0
+		var bar := Node3D.new()
+		bar.position = Vector3(cos(a) * 0.058, 0.28, sin(a) * 0.058)
+		bar.rotation = Vector3(0, -a, -0.16)
+		h.add_child(bar)
+		box(bar, Vector3(0.011, 0.18, 0.009), Vector3.ZERO, iron, false)
+	var coal := mat(Color(1.0, 0.32, 0.07), 2.6, 0.0, 0.9)
+	for c in [Vector3(0.0, 0.245, 0.0), Vector3(0.026, 0.26, 0.012), Vector3(-0.022, 0.255, -0.018), Vector3(0.006, 0.275, -0.026), Vector3(-0.015, 0.27, 0.022)]:
+		sphere(h, 0.024, c, coal)
+	flame(h, Vector3(0, 0.33, 0), 1.0)
 	# Years of smoke have blackened the stone above the flame.
-	stain(parent, pos + facing * 0.006 + Vector3(0, 1.2, 0), facing, Vector2(0.8, 1.5), _get_soot_material())
-	light(parent, pos + facing * 0.5 + Vector3(0, 0.45, 0), Color(1.0, 0.68, 0.38), energy, light_range, shadows, 0.2)
+	stain(parent, pos + facing * 0.006 + Vector3(0, 1.25, 0), facing, Vector2(0.8, 1.5), _get_soot_material())
+	light(t, Vector3(0, 0.5, 0.45), Color(1.0, 0.68, 0.38), energy, light_range, shadows, 0.2)
+	return t
+
+
+## A ring (torus) lying in the local XZ plane.
+static func torus_ring(parent: Node, pos: Vector3, inner: float, outer: float, material: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var tm := TorusMesh.new()
+	tm.inner_radius = inner
+	tm.outer_radius = outer
+	tm.rings = 20
+	tm.ring_segments = 8
+	mi.mesh = tm
+	mi.material_override = material
+	mi.position = pos
+	parent.add_child(mi)
+	return mi
+
+
+static func _torch_iron() -> StandardMaterial3D:
+	if _torch_iron_material == null:
+		_torch_iron_material = mat(Color(0.16, 0.13, 0.11), 0.0, 0.65, 0.62)
+	return _torch_iron_material
 
 
 ## Interactable prop with a visible box and matching collision.
@@ -299,6 +377,22 @@ static func npc(parent: Node, script: Script, display_name: String, pos: Vector3
 	n.add_child(body)
 	body.build(look_id)
 	n.body = body
+	# A soft fill light that only touches the character (render layer 2), so
+	# faces and clothing read in the dark halls without lighting up the walls.
+	for g in body.find_children("*", "GeometryInstance3D", true, false):
+		(g as GeometryInstance3D).layers = 1 | CHARACTER_LAYER
+	var fill := OmniLight3D.new()
+	fill.name = "CharacterLight"
+	fill.position = Vector3(0, 2.3, -0.55)
+	fill.light_color = Color(1.0, 0.86, 0.7)
+	fill.light_energy = 0.9
+	fill.light_specular = 0.25
+	fill.omni_range = 3.2
+	fill.omni_attenuation = 1.2
+	fill.light_cull_mask = CHARACTER_LAYER
+	fill.shadow_enabled = false
+	fill.light_volumetric_fog_energy = 0.0
+	n.add_child(fill)
 
 	var shape := CapsuleShape3D.new()
 	shape.radius = 0.35

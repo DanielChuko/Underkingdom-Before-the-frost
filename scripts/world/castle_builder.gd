@@ -156,6 +156,11 @@ func _corridors() -> void:
 	G.torch(root, Vector3(7.0, 2.4, -16.15), Vector3(0, 0, -1))
 	G.torch(root, Vector3(11.15, 2.4, -21.0), Vector3(1, 0, 0))
 	G.torch(root, Vector3(13.85, 2.4, -31.5), Vector3(-1, 0, 0))
+	# More torches along the way, so no stretch of corridor is pitch black.
+	G.torch(root, Vector3(1.35, 2.4, -6.4), Vector3(-1, 0, 0), 1.8, 7.0)
+	G.torch(root, Vector3(-1.35, 2.4, -11.8), Vector3(1, 0, 0), 1.8, 7.0)
+	G.torch(root, Vector3(10.0, 2.4, -18.85), Vector3(0, 0, 1), 1.8, 7.0)
+	G.torch(root, Vector3(13.85, 2.4, -25.2), Vector3(-1, 0, 0), 1.8, 7.0)
 
 
 func _kings_hall() -> void:
@@ -181,6 +186,8 @@ func _kings_hall() -> void:
 	# Throne under the crest.
 	G.box(root, Vector3(2.0, 0.4, 1.8), Vector3(12.5, 0.2, -55.9), stone_dark)
 	F.throne(root, Vector3(12.5, 0.4, -55.95), PI, Color(0.42, 0.08, 0.1))
+	# A low cushioned footstool for the king's feet.
+	F.footstool(root, Vector3(12.5, 0.4, -55.38), PI, Color(0.42, 0.08, 0.1))
 
 	# The kingdom's banners on both side walls, hanging still.
 	for z in [-38.0, -44.0, -50.0]:
@@ -195,9 +202,17 @@ func _kings_hall() -> void:
 	for i in step_count:
 		var top := (i + 1) * rise / step_count
 		G.box(root, Vector3(3.35, top, step_depth), Vector3(20.675, top * 0.5, -44.0 - (i + 0.5) * step_depth), stone_dark, false)
+	# Invisible ramp over the steps. Its top surface runs from the foot of the
+	# stairs exactly to the edge of the landing (no lip to walk into on the way
+	# down), and it runs on below the hall floor at the bottom.
 	var slope := atan2(rise, run)
-	var ramp_len := sqrt(run * run + rise * rise) + 1.0
-	G.solid(root, Vector3(3.35, 0.1, ramp_len), Vector3(20.675, rise * 0.5 + 0.06, -49.0), Vector3(slope, 0, 0))
+	var up_slope := Vector3(0, rise, -run).normalized()
+	var ramp_normal := Vector3(0, run, rise).normalized()
+	var foot := Vector3(20.675, 0.0, -44.0)
+	var ramp_len := sqrt(run * run + rise * rise)
+	var start := foot - up_slope * 0.6
+	var centre := (start + foot + up_slope * ramp_len) * 0.5 - ramp_normal * 0.05
+	G.solid(root, Vector3(3.35, 0.1, ramp_len + 0.6), centre, Vector3(slope, 0, 0))
 	G.solid(root, Vector3(0.1, 3.0, 9.0), Vector3(18.95, 1.5, -49.5))
 	G.box(root, Vector3(3.35, rise, 3.85), Vector3(20.675, rise * 0.5, -55.925), stone_dark)
 	G.box(root, Vector3(0.15, 1.0, 3.85), Vector3(19.075, rise + 0.5, -55.925), wood_dark)
@@ -423,6 +438,13 @@ func _architecture() -> void:
 		G.box(root, Vector3(20.0, 0.5, 0.45), Vector3(12.5, HALL_H - 0.25, z), wood_dark, false)
 	G.torch(root, Vector3(6.9, 2.6, -44.0), Vector3(1, 0, 0), 1.8, 9.0)
 	G.torch(root, Vector3(17.6, 2.6, -44.0), Vector3(-1, 0, 0), 1.8, 9.0)
+	# Torches on the other pillars and by the hall doors and the throne.
+	for z in [-38.0, -50.0]:
+		G.torch(root, Vector3(6.9, 2.6, z), Vector3(1, 0, 0), 1.6, 8.0, false)
+		G.torch(root, Vector3(17.6, 2.6, z), Vector3(-1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(2.65, 2.6, -35.6), Vector3(1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(22.35, 2.6, -35.6), Vector3(-1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(2.65, 2.6, -54.5), Vector3(1, 0, 0), 1.8, 9.0, false)
 	G.dust(root, Vector3(12.5, 3.0, -46.0), Vector3(8.0, 2.5, 10.0), 160)
 
 

@@ -24,6 +24,8 @@ const LOOKS_PATH := "res://data/characters.json"
 
 const HIP_HEIGHT := 0.93
 const STRIDE := 1.35  # metres per full walk cycle (two steps)
+const SEAT_HEIGHT := 0.52  # top of the throne's cushion
+const SIT_FORWARD := -0.14  # seated, the hips sit this far forward of the seat's centre
 
 ## Average albedo of each generated texture, so a look's colour comes out as
 ## that colour once the texture is multiplied in.
@@ -77,7 +79,7 @@ var _gesture := 0.0
 var _slouch := 0.0
 var _belly := false
 var _pelvis_y := HIP_HEIGHT + 0.02
-var _sit_y := 0.55
+var _sit_y := 0.61
 ## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
 var _face_mi: MeshInstance3D
 var _blink := 0.0
@@ -114,8 +116,9 @@ func build(look_id: String) -> void:
 		rig[k] = model_rig[k]
 	var p: Vector3 = rig["pelvis"]
 	_pelvis_y = p.y
-	# Seated, the pelvis sits just above knee height so the feet reach the floor.
-	_sit_y = maxf(float(rig["l_knee"].y) + 0.04, 0.52)
+	# Seated, the hips rest a hand's breadth above the seat (the throne's
+	# cushion is ~0.52 m high), never lower than the knees.
+	_sit_y = maxf(float(rig["l_knee"].y) + 0.04, SEAT_HEIGHT + 0.09)
 	pelvis = _joint(self, p)
 	chest = _joint(pelvis, rig["chest"] - p)
 	neck = _joint(chest, rig["neck"] - rig["chest"])
@@ -304,6 +307,10 @@ func _build_hand(elbow: Node3D, side: float, material: Material) -> void:
 
 
 func _build_boot(knee: Node3D, material: Material) -> void:
+	if look.has("tall_boots"):
+		# Tall boots reach up to the knee, with a strap tied around the top.
+		_mesh(knee, M.loft([[0.035, 0.063, 0.069], [-0.06, 0.064, 0.072, 0.0, 0.01], [-0.16, 0.061, 0.068, 0.0, 0.008]], 14, [], [1.0, 0.85]), material)
+		_mesh(knee, M.loft([[0.0, 0.066, 0.072], [-0.022, 0.066, 0.072]], 14), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
 	# Shaft from mid-calf to the ankle; scuffed and muddy toward the bottom.
 	_mesh(knee, M.loft([[-0.15, 0.06, 0.066, 0.0, 0.008], [-0.26, 0.052, 0.056, 0.0, 0.004], [-0.38, 0.046, 0.05],
 		[-0.44, 0.05, 0.056]], 14, [], [0.95, 0.6]), material)
@@ -415,6 +422,7 @@ func _build_mail_hood(face: Node3D, headwear: String) -> void:
 func _build_costume() -> void:
 	var belt := _mat("leather", _c("belt", "#3a2a1e"))
 	var belt_y := 0.12
+	var belt_z := 0.0
 	var waist := 0.168 if not _belly else 0.19
 	if look.has("gambeson"):
 		# The quilted skirts of the gambeson, split front and back for walking.
@@ -476,21 +484,36 @@ func _build_costume() -> void:
 	if look.has("cape"):
 		cape = _joint(chest, Vector3(0, 0.22, 0.02))
 		_mesh(cape, M.loft([[0.04, 0.18, 0.12], [-0.3, 0.24, 0.17], [-0.8, 0.29, 0.23], [-1.32, 0.33, 0.27]], 30, [0.25, PI - 0.25], [0.95, 0.35], 0.04, false, 0.2, 0.08), _mat("wool", _c("cape", "#4a1616")), true)
+	if look.has("vest"):
+		# A sleeveless wool jerkin over the shirt, down over the hips.
+		var vest := _mat("wool", _c("vest", "#4a3828"))
+		var vs := [[0.245, 0.172, 0.1], [0.18, 0.205, 0.119], [0.1, 0.198, 0.124], [0.0, 0.181, 0.118], [-0.1, 0.172, 0.118], [-0.21, 0.178, 0.124]]
+		if _belly:
+			vs = [[0.245, 0.172, 0.1], [0.18, 0.207, 0.12], [0.1, 0.202, 0.137, 0.0, -0.015], [0.0, 0.202, 0.162, 0.0, -0.04], [-0.1, 0.197, 0.167, 0.0, -0.045], [-0.21, 0.18, 0.14, 0.0, -0.02]]
+		_mesh(chest, M.loft(vs, 20, [], [1.0, 0.8], 0.006, false, 0.35, 0.02), vest, true)
 	if look.has("apron"):
 		var apron := _mat("cloth", _c("apron", "#cfc6b0"))
+		var apron_tex := str(look.get("apron_texture", ""))
+		if apron_tex != "":
+			apron = _painted_mat(apron_tex, true)
 		var bib := [[0.17, 0.165, 0.1], [0.05, 0.2, 0.165, 0.0, -0.045], [-0.08, 0.2, 0.17, 0.0, -0.05], [-0.16, 0.18, 0.135, 0.0, -0.025]]
 		if not _belly:
 			bib = [[0.17, 0.17, 0.1], [0.0, 0.17, 0.11], [-0.16, 0.16, 0.108]]
-		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.6), apron, true)
+		var uvs := apron_tex != ""
+		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.3 if uvs else 0.6, 0.0, uvs), apron, true)
 		front_panel = _joint(pelvis, Vector3(0, 0.12, 0))
 		var skirt := [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.62, 0.22, 0.155]]
-		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7, 0.05), apron, true)
+		if look.has("apron_long"):
+			skirt = [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.55, 0.22, 0.155], [-0.74, 0.225, 0.158]]
+		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.35 if uvs else 0.7, 0.05, uvs), apron, true)
+		# The belt is buckled over the apron.
+		belt_z = -0.02
 	# Belt, buckle and the long strap end hanging down the front.
 	var bw := float(look.get("belt_width", 0.045))
 	var bz := waist * 0.7 + 0.011
-	_mesh(pelvis, M.loft([[belt_y + bw * 0.5, waist + 0.008, bz - 0.001], [belt_y - bw * 0.5, waist + 0.01, bz + 0.001]], 24, [], [1.0, 0.85]), belt)
+	_mesh(pelvis, M.loft([[belt_y + bw * 0.5, waist + 0.008, bz - 0.001, 0.0, belt_z], [belt_y - bw * 0.5, waist + 0.01, bz + 0.001, 0.0, belt_z]], 24, [], [1.0, 0.85]), belt)
 	var buckle_mat := _mat("rust_metal", Color(0.72, 0.66, 0.56), 1.0, 0.7, 0.0, false)
-	var buckle := _joint(pelvis, Vector3(0.02, belt_y, -bz - 0.006))
+	var buckle := _joint(pelvis, Vector3(0.02, belt_y, -bz - 0.006 + belt_z))
 	var bh := bw + 0.016
 	for sx in [-1.0, 1.0]:
 		var side_bar := _mesh(buckle, M.bevel_box(Vector3(0.008, bh, 0.008), 0.002), buckle_mat)
@@ -502,7 +525,7 @@ func _build_costume() -> void:
 	if bw > 0.05:
 		# The strap end passes through the buckle and hangs, swinging with the cloth.
 		var tongue_parent: Node3D = front_panel if front_panel != null else pelvis
-		var tongue := _joint(tongue_parent, Vector3(0.045, belt_y + (0.02 if front_panel != null else 0.0) - bw * 0.3, -waist * 0.72 - 0.035))
+		var tongue := _joint(tongue_parent, Vector3(0.045, belt_y + (0.02 if front_panel != null else 0.0) - bw * 0.3, -waist * 0.72 - 0.035 + belt_z))
 		tongue.rotation = Vector3(-0.08, 0.0, 0.08)
 		var strap := _mesh(tongue, M.bevel_box(Vector3(bw * 0.8, 0.34, 0.006), 0.002), belt)
 		strap.position = Vector3(0, -0.17, 0)
@@ -510,10 +533,43 @@ func _build_costume() -> void:
 		tip.position = Vector3(0, -0.33, 0)
 	if look.has("pouch"):
 		P.ellipsoid(pelvis, Vector3(0.14, belt_y - 0.06, -0.08), Vector3(0.04, 0.05, 0.025), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
+	if look.has("knife"):
+		_build_knife(belt_y, waist * 0.7 + 0.03 - belt_z)
+	if look.has("towel"):
+		_build_towel(belt_y, waist * 0.7 + 0.03 - belt_z)
 	if str(look.get("weapon", "")) == "spear":
 		_build_spear()
 	if look.has("sword"):
 		_build_sword(belt_y, waist)
+
+
+## A butcher's knife in a leather sheath thrust through the belt on the right.
+func _build_knife(belt_y: float, front: float) -> void:
+	var k := _joint(pelvis, Vector3(0.1, belt_y + 0.01, -front))
+	k.rotation = Vector3(0.12, 0.0, 0.22)
+	var leather := _mat("leather", Color(0.28, 0.17, 0.11), 0.6)
+	_mesh(k, M.loft([[0.0, 0.021, 0.007], [-0.12, 0.019, 0.006], [-0.2, 0.009, 0.004], [-0.215, 0.002, 0.002]], 8), leather)
+	var wood := _mat("wood_dark", Color(0.3, 0.2, 0.13), 0.8, 0.0, 0.0, false)
+	_mesh(k, M.loft([[0.005, 0.012, 0.01], [0.05, 0.013, 0.011], [0.095, 0.012, 0.01]], 8), wood)
+	P.ellipsoid(k, Vector3(0, 0.1, 0), Vector3(0.014, 0.008, 0.012), _mat("rust_metal", Color(0.6, 0.55, 0.5), 0.5, 0.7))
+
+
+## A striped kitchen towel tucked over the belt on the left, hanging down.
+func _build_towel(belt_y: float, front: float) -> void:
+	var parent: Node3D = front_panel if front_panel != null else pelvis
+	var y0 := belt_y - (0.12 if front_panel != null else 0.0)
+	var t := _joint(parent, Vector3(-0.1, y0 + 0.02, -front - 0.004))
+	t.rotation = Vector3(-0.06, 0.0, -0.1)
+	var linen := _mat("cloth", Color(0.72, 0.67, 0.58))
+	var cloth := _mesh(t, M.bevel_box(Vector3(0.12, 0.3, 0.01), 0.004), linen)
+	cloth.position = Vector3(0, -0.15, 0)
+	cloth.rotation.y = 0.12
+	var fold := _mesh(t, M.bevel_box(Vector3(0.125, 0.05, 0.026), 0.008), linen)
+	fold.position = Vector3(0, 0.0, 0.004)
+	var red := _mat("cloth", Color(0.45, 0.12, 0.09), 1.0, 0.0, 0.0, false)
+	for y in [-0.23, -0.255]:
+		var stripe := _mesh(t, M.bevel_box(Vector3(0.122, 0.009, 0.004), 0.001), red)
+		stripe.position = Vector3(0, y, -0.006)
 
 
 ## An arming sword in a leather scabbard hanging from the belt on the left hip.
@@ -596,15 +652,17 @@ func _animate_stand(delta: float) -> void:
 
 func _animate_sit() -> void:
 	var breath := sin(_time * 1.2)
-	pelvis.position = Vector3(0, _sit_y, 0.0)
+	# Sitting forward on the seat, so the knees clear its front edge and the
+	# shins come down in front of it, feet a little forward; leaning back.
+	pelvis.position = Vector3(0, _sit_y, SIT_FORWARD)
 	pelvis.rotation = Vector3.ZERO
-	chest.rotation = Vector3(0.05 + breath * 0.01, 0, 0.02)
+	chest.rotation = Vector3(-0.06 + breath * 0.01, 0, 0.02)
 	for hip in [l_hip, r_hip]:
 		hip.rotation = Vector3(PI * 0.5, 0, 0)
 	l_hip.rotation.z = -0.1
 	r_hip.rotation.z = 0.1
-	l_knee.rotation.x = -PI * 0.5
-	r_knee.rotation.x = -PI * 0.5
+	l_knee.rotation.x = -PI * 0.5 + 0.25
+	r_knee.rotation.x = -PI * 0.5 + 0.25
 	l_shoulder.rotation = Vector3(0.45, 0, -0.18)
 	r_shoulder.rotation = Vector3(0.45, 0, 0.18)
 	l_elbow.rotation.x = 0.9
@@ -679,14 +737,18 @@ func _animate_layers() -> void:
 	var forward := maxf(maxf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	var back := minf(minf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	if pose == "sit":
+		# Skirts lie over the thighs in front and are sat on behind, folded
+		# forward under the thighs instead of hanging down through the seat.
 		forward = PI * 0.42
-		back = 0.0
+		back = PI * 0.5 / 0.85
 	if front_panel != null:
 		front_panel.rotation.x = forward * 0.85
 	if back_panel != null:
 		back_panel.rotation.x = back * 0.85
 	if cape != null:
 		cape.rotation.x = -0.03 - _walk * 0.12 + sin(_time * 1.1) * 0.015
+		# Seated, the cape bunches on the seat behind instead of hanging through it.
+		cape.scale = Vector3(1.0, 0.38, 1.0) if pose == "sit" else Vector3.ONE
 	if robe != null:
 		robe.visible = pose != "sit"
 		robe.rotation.x = sin(_phase) * 0.035 * _walk
