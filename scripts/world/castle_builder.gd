@@ -479,8 +479,8 @@ func _dressing() -> void:
 		P.bread(root, Vector3(tx, 0.8, -43.4), 1.57)
 		P.jug(root, Vector3(tx, 0.8, -46.0), Color(0.6, 0.42, 0.3), 0.5)
 	for z in [-41.0, -47.0]:
-		H.shield(root, Vector3(2.65, 3.1, z), Vector3(1, 0, 0), "shield_sun_pale", 1.1)
-		H.shield(root, Vector3(22.35, 3.3, z), Vector3(-1, 0, 0), "shield_sun_bend", 1.1)
+		H.trophy(root, Vector3(2.65, 3.1, z), Vector3(1, 0, 0), "shield_sun_pale", 1.1)
+		H.trophy(root, Vector3(22.35, 3.3, z), Vector3(-1, 0, 0), "shield_sun_bend", 1.1)
 
 	# Casimir's room: rug, chest, shelf of books.
 	D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))

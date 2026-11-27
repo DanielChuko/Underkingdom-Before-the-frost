@@ -25,7 +25,8 @@
     "mittens": true,
     "belt_width": 0.07,
     "coif_lining": "#7a2a22",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb"
+    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
+    "shield": "shield_sun_bend"
   },
   "guard_patrol": {
     "skin": "#946a55",
@@ -52,7 +53,8 @@
     "face": "scarred",
     "belt_width": 0.065,
     "coif_lining": "#5e3a2a",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb"
+    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
+    "shield": "shield_sun_pale"
   },
   "gate_guard": {
     "skin": "#b38469",
@@ -80,7 +82,8 @@
     "helmet": "#aaa296",
     "belt_width": 0.07,
     "coif_lining": "#6e2620",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb"
+    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
+    "shield": "shield_sun_bend"
   },
   "king": {
     "skin": "#b89078",

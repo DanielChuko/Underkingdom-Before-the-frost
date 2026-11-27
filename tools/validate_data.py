@@ -135,6 +135,8 @@ def check_characters() -> None:
         for key, pattern in (("face", "face_{}_albedo.png"), ("device", "{}_albedo.png"), ("apron_texture", "{}_albedo.png")):
             if key in look and not (ROOT / "assets" / "textures" / pattern.format(look[key])).exists():
                 err(f"characters.json:{cid}.{key}: no texture '{pattern.format(look[key])}' (run tools/gen_faces.py / gen_textures.py)")
+        if "shield" in look and not (ROOT / "assets" / "textures" / "heraldry" / f"{look['shield']}_albedo.png").exists():
+            err(f"characters.json:{cid}.shield: no heraldry texture '{look['shield']}_albedo.png'")
         if "model" in look:
             rel = str(look["model"]).replace("res://", "")
             if not (ROOT / rel).exists():

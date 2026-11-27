@@ -20,6 +20,7 @@ const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const P := preload("res://scripts/world/props.gd")
 const M := preload("res://scripts/characters/mesh_lib.gd")
+const H := preload("res://scripts/world/heraldry.gd")
 const LOOKS_PATH := "res://data/characters.json"
 
 const HIP_HEIGHT := 0.93
@@ -68,6 +69,7 @@ var back_panel: Node3D
 var cape: Node3D
 var robe: Node3D
 var spear: Node3D
+var shield: Node3D
 
 var _phase := 0.0
 var _walk := 0.0
@@ -82,6 +84,24 @@ var _pelvis_y := HIP_HEIGHT + 0.02
 var _sit_y := 0.61
 ## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
 var _face_mi: MeshInstance3D
+# Turning on the spot: yaw rate of the character, smoothed, and a step cycle.
+var _prev_yaw := 0.0
+var _yaw_ready := false
+var _turn_rate := 0.0
+var _turn_phase := 0.0
+var _turn := 0.0
+# Talking: the gesture arm moves between a few poses (shoulder x, shoulder z,
+# elbow), changing every second or two, with small beats on top.
+var _gest_pose := Vector3(0.4, 0.18, 0.95)
+var _gest_target := Vector3(0.4, 0.18, 0.95)
+var _gest_timer := 0.0
+const GESTURES := [
+	Vector3(0.5, 0.22, 1.05),  # open hand, forearm forward
+	Vector3(0.28, 0.12, 0.7),  # low, explaining
+	Vector3(0.62, 0.3, 1.25),  # raised, making a point
+	Vector3(0.36, 0.05, 1.0),  # hand towards the chest
+	Vector3(0.15, 0.08, 0.35),  # arm dropping between phrases
+]
 var _blink := 0.0
 var _next_blink := 2.0
 
@@ -137,6 +157,11 @@ func build(look_id: String) -> void:
 		_build_from_model(model_path)
 		if str(look.get("weapon", "")) == "spear":
 			_build_spear()
+		if look.has("sword"):
+			# Hang the sword from the model's own belt.
+			var belt := _model_belt()
+			_build_sword(belt.x, belt.y)
+		_build_shield()
 		return
 	_build_body()
 	_build_head()
@@ -541,6 +566,7 @@ func _build_costume() -> void:
 		_build_spear()
 	if look.has("sword"):
 		_build_sword(belt_y, waist)
+	_build_shield()
 
 
 ## A butcher's knife in a leather sheath thrust through the belt on the right.
@@ -589,6 +615,27 @@ func _build_sword(belt_y: float, waist: float) -> void:
 	P.ellipsoid(hang, Vector3(0, 0.15, 0), Vector3(0.012, 0.027, 0.027), steel)
 
 
+## A heater shield painted with the kingdom's arms ("shield": a design from
+## heraldry.gd), carried on the left forearm, face turned out and forward.
+func _build_shield() -> void:
+	var design := str(look.get("shield", ""))
+	if design == "":
+		return
+	shield = _joint(l_elbow, Vector3(-0.075, -0.13, -0.03))
+	H.shield(shield, Vector3.ZERO, Vector3(-0.72, 0.0, -0.69).normalized(), design, 0.66)
+
+
+## Height and half-width of an imported model's belt, from its belt part
+## (pelvis-local), falling back to typical values.
+func _model_belt() -> Vector2:
+	for child in pelvis.get_children():
+		if child is MeshInstance3D and String(child.name).to_lower().contains("belt"):
+			var mi := child as MeshInstance3D
+			var box := mi.transform * mi.get_aabb()
+			return Vector2(box.get_center().y, maxf(box.size.x * 0.5, 0.12))
+	return Vector2(0.06, 0.17)
+
+
 func _build_spear() -> void:
 	spear = _joint(r_elbow, Vector3(0, -0.3, -0.02))
 	spear.rotation.x = -0.9
@@ -609,6 +656,13 @@ func _process(delta: float) -> void:
 	_walk = lerpf(_walk, clampf(speed / 1.1, 0.0, 1.0), clampf(delta * 5.0, 0.0, 1.0))
 	_talk = maxf(_talk - delta, 0.0)
 	_gesture = lerpf(_gesture, 1.0 if _talk > 0.0 else 0.0, clampf(delta * 3.0, 0.0, 1.0))
+	_track_turning(delta)
+	if _talk > 0.0:
+		_gest_timer -= delta
+		if _gest_timer <= 0.0:
+			_gest_target = GESTURES[randi() % GESTURES.size()]
+			_gest_timer = randf_range(0.8, 1.9)
+	_gest_pose = _gest_pose.lerp(_gest_target, clampf(delta * 3.5, 0.0, 1.0))
 	if pose == "sit":
 		_animate_sit()
 	else:
@@ -643,11 +697,67 @@ func _animate_stand(delta: float) -> void:
 	l_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, -s) * 0.2 * _walk
 	r_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, s) * 0.2 * _walk
 
+	_animate_turn(delta)
+	_animate_talk_body(1.0)
 	if spear != null:
 		# The spear hand stays steady and keeps the shaft upright.
 		r_shoulder.rotation = Vector3(0.15, 0, 0.1)
 		r_elbow.rotation.x = 0.75
+	if shield != null and _gesture < 0.01:
+		# The shield arm carries the shield a little forward, close to the body.
+		l_shoulder.rotation.x += 0.1
+		l_elbow.rotation.x += 0.35
 	_apply_gesture()
+
+
+## How fast the character is turning (radians per second, + is to its left).
+func _track_turning(delta: float) -> void:
+	var yaw := global_rotation.y if is_inside_tree() else rotation.y
+	if not _yaw_ready:
+		_prev_yaw = yaw
+		_yaw_ready = true
+	var rate := wrapf(yaw - _prev_yaw, -PI, PI) / maxf(delta, 0.0001)
+	_prev_yaw = yaw
+	_turn_rate = lerpf(_turn_rate, rate, clampf(delta * 10.0, 0.0, 1.0))
+
+
+## Turning on the spot: the head leads, the shoulders follow and the hips
+## come last, while the feet take small shuffling steps round, one step for
+## every ~25 degrees turned, the body dipping on each.
+func _animate_turn(delta: float) -> void:
+	var target := clampf(absf(_turn_rate) / 2.0, 0.0, 1.0) * (1.0 - _walk)
+	_turn = lerpf(_turn, target, clampf(delta * 8.0, 0.0, 1.0))
+	if _turn < 0.01:
+		return
+	_turn_phase += absf(_turn_rate) * delta / 0.45 * PI
+	var st := sin(_turn_phase)
+	var lead := clampf(_turn_rate * 0.14, -0.45, 0.45) * _turn
+	pelvis.rotation.y -= lead * 0.5
+	chest.rotation.y += lead * 0.5
+	pelvis.position.y -= absf(cos(_turn_phase)) * 0.015 * _turn
+	l_hip.rotation.x += maxf(0.0, st) * 0.22 * _turn
+	r_hip.rotation.x += maxf(0.0, -st) * 0.22 * _turn
+	l_knee.rotation.x -= maxf(0.0, st) * 0.45 * _turn
+	r_knee.rotation.x -= maxf(0.0, -st) * 0.45 * _turn
+	l_hip.rotation.z -= maxf(0.0, st) * 0.06 * _turn
+	r_hip.rotation.z += maxf(0.0, -st) * 0.06 * _turn
+	l_shoulder.rotation.x += st * 0.06 * _turn
+	r_shoulder.rotation.x -= st * 0.06 * _turn
+
+
+## While talking the whole body takes part: a slight lean in, a slow twist
+## towards the gesturing arm, shoulders rising with emphasis.
+func _animate_talk_body(amount: float) -> void:
+	if _gesture < 0.01:
+		return
+	var g := _gesture * amount
+	var right := str(look.get("gesture_arm", "right")) == "right"
+	chest.rotation.x += g * (0.035 + 0.025 * sin(_time * 1.9))
+	chest.rotation.y += g * ((0.07 if right else -0.07) * (0.5 + 0.5 * sin(_time * 0.8)))
+	chest.rotation.z += g * 0.02 * sin(_time * 1.3)
+	var shrug := pow(maxf(0.0, sin(_time * 1.1 + 0.7)), 6.0) * 0.12 * g
+	l_shoulder.rotation.z -= shrug
+	r_shoulder.rotation.z += shrug
 
 
 func _animate_sit() -> void:
@@ -667,6 +777,7 @@ func _animate_sit() -> void:
 	r_shoulder.rotation = Vector3(0.45, 0, 0.18)
 	l_elbow.rotation.x = 0.9
 	r_elbow.rotation.x = 0.9
+	_animate_talk_body(0.6)
 	_apply_gesture()
 
 
@@ -676,10 +787,18 @@ func _apply_gesture() -> void:
 	var right := str(look.get("gesture_arm", "right")) == "right"
 	var shoulder := r_shoulder if right else l_shoulder
 	var elbow := r_elbow if right else l_elbow
-	var wave := sin(_time * 1.7)
-	shoulder.rotation.x = lerpf(shoulder.rotation.x, 0.4 + wave * 0.1, _gesture)
-	shoulder.rotation.z = lerpf(shoulder.rotation.z, (0.18 if right else -0.18), _gesture)
-	elbow.rotation.x = lerpf(elbow.rotation.x, 0.95 + sin(_time * 2.3) * 0.12, _gesture)
+	# Beats: small quick movements of the hand on stressed words.
+	var beat := sin(_time * 2.3) * 0.06 + sin(_time * 5.1) * 0.03
+	var side := 1.0 if right else -1.0
+	shoulder.rotation.x = lerpf(shoulder.rotation.x, _gest_pose.x + beat, _gesture)
+	shoulder.rotation.z = lerpf(shoulder.rotation.z, _gest_pose.y * side, _gesture)
+	elbow.rotation.x = lerpf(elbow.rotation.x, _gest_pose.z + beat * 1.5, _gesture)
+	# The other arm moves a little too, unless it holds a spear.
+	var other_shoulder := l_shoulder if right else r_shoulder
+	var other_elbow := l_elbow if right else r_elbow
+	if not (spear != null and not right):
+		other_shoulder.rotation.x += 0.05 * _gesture * sin(_time * 0.9)
+		other_elbow.rotation.x += 0.12 * _gesture * (0.5 + 0.5 * sin(_time * 1.3 + 1.0))
 
 
 func _animate_head(delta: float) -> void:
@@ -697,9 +816,13 @@ func _animate_head(delta: float) -> void:
 	var k := clampf(delta * 2.5, 0.0, 1.0)
 	_head_yaw = lerpf(_head_yaw, yaw, k)
 	_head_pitch = lerpf(_head_pitch, pitch, k)
-	var nod := sin(_time * 3.6) * 0.04 * _gesture
-	neck.rotation = Vector3(-_slouch * 0.5, _head_yaw * 0.4, 0)
-	head.rotation = Vector3(_head_pitch + nod, _head_yaw * 0.6, 0)
+	# Nods land on the beats of speech; the head tilts now and then.
+	var nod := (pow(absf(sin(_time * 2.2)), 4.0) * 0.07 - 0.02) * _gesture
+	var tilt := sin(_time * 0.7) * 0.06 * _gesture
+	# Turning, the head leads the body round.
+	var lead := clampf(_turn_rate * 0.2, -0.5, 0.5) * _turn
+	neck.rotation = Vector3(-_slouch * 0.5, _head_yaw * 0.4 + lead * 0.4, 0)
+	head.rotation = Vector3(_head_pitch + nod, _head_yaw * 0.6 + lead * 0.6, tilt)
 	if mouth != null:
 		var open := 0.0
 		if _talk > 0.0:

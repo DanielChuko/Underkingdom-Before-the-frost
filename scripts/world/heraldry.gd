@@ -76,6 +76,50 @@ static func shield(parent: Node, center: Vector3, normal: Vector3, design := "sh
 	return s
 
 
+## A trophy of arms on a wall: two swords crossed behind a painted shield.
+static func trophy(parent: Node, center: Vector3, normal: Vector3, design := "shield_sun_bend", height := 1.0) -> Node3D:
+	var t := Node3D.new()
+	t.position = center
+	t.rotation.y = atan2(normal.x, normal.z)
+	parent.add_child(t)
+	var length := height * 1.6
+	for side in [-1.0, 1.0]:
+		sword(t, Vector3(0, height * 0.12, 0.012 + (0.006 if side > 0.0 else 0.0)), side * 0.75, length)
+	shield(t, Vector3(0, 0, 0.03), Vector3(0, 0, 1), design, height)
+	return t
+
+
+## A plain arming sword lying in the local XY plane (blade pointing down,
+## turned by `tilt` about Z), centred on the middle of its blade.
+static func sword(parent: Node, pos: Vector3, tilt: float, length := 0.95) -> Node3D:
+	var s := Node3D.new()
+	s.position = pos
+	s.rotation.z = tilt
+	parent.add_child(s)
+	var steel := G.mat(Color(0.62, 0.6, 0.58), 0.0, 0.85, 0.32)
+	var dark := G.mat(Color(0.2, 0.17, 0.14), 0.0, 0.7, 0.5)
+	var grip := G.mat(Color(0.22, 0.13, 0.08), 0.0, 0.0, 0.8)
+	var blade := length * 0.76
+	var top := blade * 0.5
+	# Blade with a darker fuller down the middle, and a point.
+	G.box(s, Vector3(0.048, blade - 0.06, 0.006), Vector3(0, top - (blade - 0.06) * 0.5 - 0.0, 0), steel, false)
+	G.box(s, Vector3(0.012, blade * 0.7, 0.0075), Vector3(0, top - blade * 0.36, 0), dark, false)
+	var point := MeshInstance3D.new()
+	var prism := PrismMesh.new()
+	prism.size = Vector3(0.048, 0.07, 0.006)
+	point.mesh = prism
+	point.material_override = steel
+	point.position = Vector3(0, top - blade + 0.025, 0)
+	point.rotation.z = PI
+	s.add_child(point)
+	# Crossguard, leather grip and wheel pommel above the blade.
+	G.box(s, Vector3(0.2, 0.024, 0.024), Vector3(0, top + 0.012, 0), dark, false)
+	G.cylinder(s, 0.015, length * 0.14, Vector3(0, top + 0.024 + length * 0.07, 0), grip, 0.013)
+	var pommel := G.cylinder(s, 0.03, 0.022, Vector3(0, top + 0.05 + length * 0.14, 0), dark)
+	pommel.rotation.x = PI * 0.5
+	return s
+
+
 ## A standing flag on an oak pole (the user's model) with a crossbar, so the
 ## flag hangs flat with no wind. `base` is on the floor; the flag flies
 ## towards local +X, turned by `yaw`.
