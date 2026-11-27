@@ -13,6 +13,8 @@ const WALL_THICKNESS := 0.3
 
 static var _flame_material: StandardMaterial3D
 static var _dust_material: StandardMaterial3D
+static var _grime_material: StandardMaterial3D
+static var _soot_material: StandardMaterial3D
 
 
 static func mat(color: Color, emission_energy := 0.0, metallic := 0.0, roughness := 0.9) -> StandardMaterial3D:
@@ -229,10 +231,10 @@ static func wall(parent: Node, a: Vector2, b: Vector2, height: float, material: 
 	for g in sorted:
 		var g0: float = g[0] - g[1] * 0.5
 		var g1: float = g[0] + g[1] * 0.5
-		_wall_segment(parent, along_x, fixed, cursor, g0, base_y, base_y + height, material)
+		_wall_segment(parent, along_x, fixed, cursor, g0, base_y, base_y + height, material, true)
 		_wall_segment(parent, along_x, fixed, g0, g1, base_y + g[2], base_y + height, material)
 		cursor = g1
-	_wall_segment(parent, along_x, fixed, cursor, s1, base_y, base_y + height, material)
+	_wall_segment(parent, along_x, fixed, cursor, s1, base_y, base_y + height, material, true)
 
 
 ## A door. `hinge` is the bottom of the hinge edge, `along` points from the hinge
@@ -261,6 +263,8 @@ static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, li
 	stick.rotation = Vector3(facing.z, 0, -facing.x) * 0.25
 	box(parent, Vector3(0.11, 0.1, 0.11), pos + facing * 0.19 + Vector3(0, 0.3, 0), iron, false)
 	flame(parent, pos + facing * 0.2 + Vector3(0, 0.38, 0), 1.0)
+	# Years of smoke have blackened the stone above the flame.
+	stain(parent, pos + facing * 0.006 + Vector3(0, 1.2, 0), facing, Vector2(0.8, 1.5), _get_soot_material())
 	light(parent, pos + facing * 0.5 + Vector3(0, 0.45, 0), Color(1.0, 0.68, 0.38), energy, light_range, shadows, 0.2)
 
 
@@ -314,7 +318,7 @@ static func _add_box_shape(body: Node, size: Vector3) -> void:
 	body.add_child(cs)
 
 
-static func _wall_segment(parent: Node, along_x: bool, fixed: float, s0: float, s1: float, y0: float, y1: float, material: Material) -> void:
+static func _wall_segment(parent: Node, along_x: bool, fixed: float, s0: float, s1: float, y0: float, y1: float, material: Material, grime := false) -> void:
 	if s1 - s0 < 0.01 or y1 - y0 < 0.01:
 		return
 	var mid := (s0 + s1) * 0.5
@@ -323,6 +327,71 @@ static func _wall_segment(parent: Node, along_x: bool, fixed: float, s0: float, 
 		box(parent, Vector3(s1 - s0, y1 - y0, WALL_THICKNESS), Vector3(mid, ymid, fixed), material)
 	else:
 		box(parent, Vector3(WALL_THICKNESS, y1 - y0, s1 - s0), Vector3(fixed, ymid, mid), material)
+	if not grime:
+		return
+	# Damp and dirt darken the foot of every wall, on both faces.
+	var h := minf(0.8, y1 - y0)
+	for side in [1.0, -1.0]:
+		var normal := Vector3(0, 0, side) if along_x else Vector3(side, 0, 0)
+		var centre := Vector3(mid, y0 + h * 0.5, fixed) if along_x else Vector3(fixed, y0 + h * 0.5, mid)
+		stain(parent, centre + normal * (WALL_THICKNESS * 0.5 + 0.004), normal, Vector2(s1 - s0, h), _get_grime_material())
+
+
+## A flat stain (soot, damp, grime) laid on a wall; normal points out of the wall.
+static func stain(parent: Node, centre: Vector3, normal: Vector3, size: Vector2, material: Material) -> MeshInstance3D:
+	var mi := MeshInstance3D.new()
+	var quad := QuadMesh.new()
+	quad.size = size
+	mi.mesh = quad
+	mi.material_override = material
+	mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	mi.position = centre
+	mi.rotation.y = atan2(normal.x, normal.z)
+	parent.add_child(mi)
+	return mi
+
+
+static func _stain_material(texture: Texture2D, strength: float) -> StandardMaterial3D:
+	var m := StandardMaterial3D.new()
+	m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	m.albedo_color = Color(0.02, 0.015, 0.01, strength)
+	m.albedo_texture = texture
+	m.disable_receive_shadows = true
+	return m
+
+
+static func _get_grime_material() -> StandardMaterial3D:
+	if _grime_material == null:
+		var g := Gradient.new()
+		g.set_color(0, Color(1, 1, 1, 0))
+		g.set_color(1, Color(1, 1, 1, 1))
+		g.add_point(0.55, Color(1, 1, 1, 0.3))
+		var t := GradientTexture2D.new()
+		t.gradient = g
+		t.fill_from = Vector2(0, 0)
+		t.fill_to = Vector2(0, 1)
+		t.width = 4
+		t.height = 64
+		_grime_material = _stain_material(t, 0.55)
+	return _grime_material
+
+
+static func _get_soot_material() -> StandardMaterial3D:
+	if _soot_material == null:
+		# A plume that starts above the flame and widens and fades upwards.
+		var w := 48
+		var h := 96
+		var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+		for y in h:
+			var t := 1.0 - float(y) / (h - 1)
+			var rise := smoothstep(0.0, 0.15, t) * pow(1.0 - t, 1.3)
+			var sigma := 0.12 + 0.22 * t
+			for x in w:
+				var xn := (float(x) / (w - 1) - 0.5) / sigma
+				img.set_pixel(x, y, Color(1, 1, 1, clampf(rise * exp(-0.5 * xn * xn) * 1.6, 0.0, 1.0)))
+		_soot_material = _stain_material(ImageTexture.create_from_image(img), 0.75)
+	return _soot_material
 
 
 static func _door_leaf(door_node, hinge: Vector3, along: Vector3, open_into: Vector3, width: float, height: float, material: Material, trim: Material) -> void:

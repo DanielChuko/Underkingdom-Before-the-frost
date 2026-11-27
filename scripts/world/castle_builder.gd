@@ -19,6 +19,7 @@ const S := preload("res://scripts/world/surfaces.gd")
 const D := preload("res://scripts/world/decor.gd")
 const P := preload("res://scripts/world/props.gd")
 const F := preload("res://scripts/world/furniture.gd")
+const H := preload("res://scripts/world/heraldry.gd")
 
 const CORRIDOR_H := 4.0
 const CORRIDOR_C_H := 5.0
@@ -40,8 +41,6 @@ var floor_mat: Material
 var ceiling_mat: Material
 var wood: Material
 var wood_dark: Material
-var red_cloth: Material
-var gold: Material
 var plaster: Material
 
 
@@ -91,14 +90,12 @@ func build(for_act: int) -> Dictionary:
 
 func _materials() -> void:
 	stone = D.stone()
-	stone_dark = S.get_material("stone_wall", Color(0.62, 0.6, 0.58), 1.6)
-	floor_mat = S.get_material("flagstone", Color(0.95, 0.92, 0.88), 3.0)
-	ceiling_mat = S.get_material("wood_dark", Color(0.6, 0.58, 0.56), 2.5)
+	stone_dark = S.get_material("stone_wall", Color(0.46, 0.44, 0.42), 1.6)
+	floor_mat = S.get_material("flagstone", Color(0.66, 0.63, 0.6), 3.0)
+	ceiling_mat = S.get_material("wood_dark", Color(0.42, 0.4, 0.38), 2.5)
 	wood = D.wood()
 	wood_dark = D.wood_dark()
-	red_cloth = S.get_material("cloth", Color(0.62, 0.08, 0.09), 0.8)
-	gold = G.mat(Color(0.9, 0.7, 0.25), 0.4, 0.8, 0.35)
-	plaster = S.get_material("plaster", Color.WHITE, 3.0)
+	plaster = S.get_material("plaster", Color(0.74, 0.7, 0.64), 3.0)
 
 
 func _locked(hinge: Vector3, along: Vector3, label := "door") -> void:
@@ -144,8 +141,13 @@ func _corridors() -> void:
 	_locked(Vector3(11.22, 0, -29.4), Vector3(0, 0, -1))
 	_locked(Vector3(13.78, 0, -26.4), Vector3(0, 0, -1))
 
-	# Crest above the hall entrance (corridor side).
-	_crest(Vector3(12.5, 4.45, -33.8), 0.85, 0.0)
+	# The kingdom's shield above the hall entrance (corridor side), and
+	# banners on the way to the hall.
+	H.shield(root, Vector3(12.5, 4.3, -33.85), Vector3(0, 0, 1), "shield_sun_pale", 1.0)
+	H.banner(root, Vector3(-1.35, 3.7, -4.8), Vector3(1, 0, 0), 0.75)
+	H.banner(root, Vector3(1.35, 3.7, -2.8), Vector3(-1, 0, 0), 0.75)
+	H.banner(root, Vector3(11.15, 4.7, -32.4), Vector3(1, 0, 0), 0.85)
+	H.banner(root, Vector3(13.85, 4.7, -29.0), Vector3(-1, 0, 0), 0.85)
 
 	# Torches.
 	G.torch(root, Vector3(-1.35, 2.4, -3.0), Vector3(1, 0, 0))
@@ -157,7 +159,7 @@ func _corridors() -> void:
 
 
 func _kings_hall() -> void:
-	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, S.get_material("flagstone", Color(1.0, 0.95, 0.9), 4.0), ceiling_mat)
+	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, S.get_material("flagstone", Color(0.7, 0.66, 0.62), 4.0), ceiling_mat)
 	G.wall(root, Vector2(2.35, -34), Vector2(22.65, -34), HALL_H, stone, [[12.5, 3.0, 3.4]])
 	G.wall(root, Vector2(2.35, -58), Vector2(22.65, -58), HALL_H, stone)
 	G.wall(root, Vector2(2.5, -34), Vector2(2.5, -58), HALL_H, stone)
@@ -170,17 +172,20 @@ func _kings_hall() -> void:
 	# Carpet runner to the throne.
 	D.rug(root, Vector3(12.5, 0, -45.0), Vector2(2.6, 21.0), Color(0.6, 0.07, 0.08), Color(0.85, 0.62, 0.22))
 
-	# Great crest on the far wall.
-	_crest(Vector3(12.5, 5.8, -57.8), 3.0, 0.0)
+	# The great shield of the kingdom on the far wall, flanked by two
+	# standing flags.
+	H.shield(root, Vector3(12.5, 5.8, -57.85), Vector3(0, 0, 1), "shield_sun_bend", 3.2)
+	H.standard(root, Vector3(8.0, 0, -57.35), 0.0, 1.6)
+	H.standard(root, Vector3(14.3, 0, -57.35), 0.0, 1.6)
 
 	# Throne under the crest.
 	G.box(root, Vector3(2.0, 0.4, 1.8), Vector3(12.5, 0.2, -55.9), stone_dark)
 	F.throne(root, Vector3(12.5, 0.4, -55.95), PI, Color(0.42, 0.08, 0.1))
 
-	# Red banners bearing the crest on both side walls.
+	# The kingdom's banners on both side walls, hanging still.
 	for z in [-38.0, -44.0, -50.0]:
-		_banner(Vector3(2.68, 5.4, z), Vector3(1, 0, 0))
-		_banner(Vector3(22.32, 5.4, z), Vector3(-1, 0, 0))
+		H.banner(root, Vector3(2.65, 7.3, z), Vector3(1, 0, 0), 1.4)
+		H.banner(root, Vector3(22.35, 7.3, z), Vector3(-1, 0, 0), 1.4)
 
 	# Staircase along the east wall up to a landing with a (locked) door.
 	var step_count := 14
@@ -210,7 +215,7 @@ func _kings_hall() -> void:
 
 
 func _player_room() -> void:
-	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, S.get_material("wood_floor", Color.WHITE, 2.2), ceiling_mat)
+	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, S.get_material("wood_floor", Color(0.72, 0.68, 0.64), 2.2), ceiling_mat)
 	G.wall(root, Vector2(-7.65, -4), Vector2(-1.5, -4), ROOM_H, plaster)
 	G.wall(root, Vector2(-7.65, -10), Vector2(-1.5, -10), ROOM_H, plaster)
 	G.wall(root, Vector2(-7.5, -4), Vector2(-7.5, -10), ROOM_H, plaster)
@@ -278,7 +283,7 @@ func _player_room() -> void:
 
 
 func _kitchen() -> void:
-	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, S.get_material("flagstone", Color(0.85, 0.82, 0.78), 2.2), ceiling_mat)
+	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, S.get_material("flagstone", Color(0.6, 0.57, 0.54), 2.2), ceiling_mat)
 	G.wall(root, Vector2(1.5, -3), Vector2(9.65, -3), ROOM_H, stone)
 	G.wall(root, Vector2(1.5, -14), Vector2(9.65, -14), ROOM_H, stone)
 	G.wall(root, Vector2(9.5, -3), Vector2(9.5, -14), ROOM_H, stone)
@@ -423,10 +428,10 @@ func _architecture() -> void:
 
 func _dressing() -> void:
 	# Corridor: shields, barrels and crates.
-	D.shield(root, Vector3(-1.35, 2.3, -10.5), Vector3(1, 0, 0), Color(0.45, 0.12, 0.12))
-	D.shield(root, Vector3(1.35, 2.3, -5.0), Vector3(-1, 0, 0), Color(0.2, 0.28, 0.5))
-	D.shield(root, Vector3(11.15, 2.6, -27.0), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
-	D.shield(root, Vector3(13.85, 2.6, -23.5), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+	H.shield(root, Vector3(-1.35, 2.3, -10.5), Vector3(1, 0, 0), "shield_sun_bend", 0.7)
+	H.shield(root, Vector3(1.35, 2.3, -5.0), Vector3(-1, 0, 0), "shield_sun_pale", 0.7)
+	H.shield(root, Vector3(11.15, 2.6, -27.0), Vector3(1, 0, 0), "shield_sun_pale", 0.7)
+	H.shield(root, Vector3(13.85, 2.6, -23.5), Vector3(-1, 0, 0), "shield_sun_bend", 0.7)
 	D.barrel(root, Vector3(-1.0, 0, -0.65))
 	D.barrel(root, Vector3(1.0, 0, -0.7))
 	D.crate(root, Vector3(-1.0, 0, -18.35), 0.6, 0.2)
@@ -452,8 +457,8 @@ func _dressing() -> void:
 		P.bread(root, Vector3(tx, 0.8, -43.4), 1.57)
 		P.jug(root, Vector3(tx, 0.8, -46.0), Color(0.6, 0.42, 0.3), 0.5)
 	for z in [-41.0, -47.0]:
-		D.shield(root, Vector3(2.65, 3.2, z), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
-		D.shield(root, Vector3(22.35, 3.4, z), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+		H.shield(root, Vector3(2.65, 3.1, z), Vector3(1, 0, 0), "shield_sun_pale", 1.1)
+		H.shield(root, Vector3(22.35, 3.3, z), Vector3(-1, 0, 0), "shield_sun_bend", 1.1)
 
 	# Casimir's room: rug, chest, shelf of books.
 	D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))
@@ -503,48 +508,6 @@ func _characters() -> void:
 		cook.patrol_points = [Vector3(3.2, 0, -5.5), Vector3(7.8, 0, -5.5), Vector3(7.8, 0, -11.8), Vector3(3.2, 0, -11.8)]
 		npcs["cook"] = cook
 	npcs["king"] = king
-
-
-## An original crest: a sun above a white peak on a deep blue shield.
-func _crest(center: Vector3, scale: float, yaw: float) -> void:
-	var c := Node3D.new()
-	c.position = center
-	c.rotation.y = yaw
-	c.scale = Vector3.ONE * scale
-	root.add_child(c)
-	G.box(c, Vector3(0.9, 1.0, 0.05), Vector3(0, 0.05, 0), G.mat(Color(0.1, 0.16, 0.36)), false)
-	var point := MeshInstance3D.new()
-	var prism := PrismMesh.new()
-	prism.size = Vector3(0.9, 0.35, 0.05)
-	point.mesh = prism
-	point.material_override = G.mat(Color(0.1, 0.16, 0.36))
-	point.position = Vector3(0, -0.62, 0)
-	point.rotation.z = PI
-	c.add_child(point)
-	var sun := G.cylinder(c, 0.17, 0.03, Vector3(0, 0.25, 0.04), gold)
-	sun.rotation.x = PI * 0.5
-	var peak := MeshInstance3D.new()
-	var peak_mesh := PrismMesh.new()
-	peak_mesh.size = Vector3(0.6, 0.45, 0.03)
-	peak.mesh = peak_mesh
-	peak.material_override = G.mat(Color(0.92, 0.94, 0.97))
-	peak.position = Vector3(0, -0.2, 0.04)
-	c.add_child(peak)
-
-
-func _banner(pos: Vector3, normal: Vector3) -> void:
-	var b := Node3D.new()
-	b.position = pos
-	b.rotation.y = atan2(-normal.x, -normal.z) + PI
-	root.add_child(b)
-	G.box(b, Vector3(1.5, 0.1, 0.1), Vector3(0, 1.85, 0.05), wood_dark, false)
-	G.box(b, Vector3(1.3, 3.6, 0.04), Vector3(0, 0, 0.05), red_cloth, false)
-	var emblem := Node3D.new()
-	emblem.position = Vector3(0, 0.6, 0.08)
-	emblem.scale = Vector3.ONE * 0.7
-	b.add_child(emblem)
-	var disc := G.cylinder(emblem, 0.25, 0.03, Vector3.ZERO, gold)
-	disc.rotation.x = PI * 0.5
 
 
 func _mountain_texture() -> ImageTexture:

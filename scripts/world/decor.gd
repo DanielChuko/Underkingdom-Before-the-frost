@@ -9,11 +9,11 @@ const F := preload("res://scripts/world/furniture.gd")
 
 
 static func stone() -> Material:
-	return S.get_material("stone_wall", Color(0.95, 0.93, 0.9), 2.4)
+	return S.get_material("stone_wall", Color(0.68, 0.66, 0.63), 2.4)
 
 
 static func stone_trim() -> Material:
-	return S.get_material("stone_wall", Color(0.72, 0.7, 0.68), 1.2)
+	return S.get_material("stone_wall", Color(0.5, 0.48, 0.46), 1.2)
 
 
 static func wood() -> Material:
@@ -149,4 +149,4 @@ static func chandelier(parent: Node, pos: Vector3, ceiling_y: float) -> void:
 		var p := pos + Vector3(cos(a) * 0.65, 0.12, sin(a) * 0.65)
 		G.cylinder(parent, 0.03, 0.16, p, G.mat(Color(0.93, 0.9, 0.8)))
 		G.flame(parent, p + Vector3(0, 0.11, 0), 0.35)
-	G.light(parent, pos + Vector3(0, -0.3, 0), Color(1.0, 0.78, 0.5), 2.6, 16.0, true, 0.08)
+	G.light(parent, pos + Vector3(0, -0.3, 0), Color(1.0, 0.72, 0.45), 2.2, 15.0, true, 0.08)
