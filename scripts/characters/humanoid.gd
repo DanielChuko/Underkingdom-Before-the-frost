@@ -112,6 +112,12 @@ func build(look_id: String) -> void:
 	l_knee = _joint(l_hip, Vector3(0, -0.44, 0))
 	r_knee = _joint(r_hip, Vector3(0, -0.44, 0))
 
+	var model_path := str(look.get("model", ""))
+	if model_path != "" and ResourceLoader.exists(model_path):
+		_build_from_model(model_path)
+		if str(look.get("weapon", "")) == "spear":
+			_build_spear()
+		return
 	_build_body()
 	_build_head()
 	_build_costume()
@@ -120,6 +126,41 @@ func build(look_id: String) -> void:
 ## Starts the talking animation for `duration` seconds.
 func speak(duration: float) -> void:
 	_talk = maxf(_talk, duration)
+
+
+# --- Imported models ------------------------------------------------------------------
+
+## Dresses the rig in a multi-part model prepared by tools/rig_model.py: every
+## part is a node named "<joint>__<part>" whose geometry is already in that
+## joint's local space, so it only has to be moved under the joint to walk,
+## turn its head and talk with the rest of the rig.
+func _build_from_model(path: String) -> void:
+	var packed = load(path)
+	if packed == null or not (packed is PackedScene):
+		push_warning("Humanoid: could not load model %s" % path)
+		return
+	front_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+	back_panel = _joint(pelvis, Vector3(0, -0.02, 0))
+	var joints := {
+		"pelvis": pelvis, "chest": chest, "neck": neck, "head": head,
+		"front_panel": front_panel, "back_panel": back_panel,
+		"l_shoulder": l_shoulder, "r_shoulder": r_shoulder, "l_elbow": l_elbow, "r_elbow": r_elbow,
+		"l_hip": l_hip, "r_hip": r_hip, "l_knee": l_knee, "r_knee": r_knee,
+	}
+	var inst: Node = packed.instantiate()
+	for node in inst.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		var bits := String(mi.name).split("__", true, 1)
+		if bits.size() < 2 or not joints.has(bits[0]):
+			continue
+		var local := mi.transform
+		mi.get_parent().remove_child(mi)
+		var joint: Node3D = joints[bits[0]]
+		joint.add_child(mi)
+		mi.transform = local
+		if bits[1] == "Mouth":
+			mouth = mi
+	inst.free()
 
 
 # --- Body ---------------------------------------------------------------------------
