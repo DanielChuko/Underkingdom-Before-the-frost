@@ -6,6 +6,7 @@ extends RefCounted
 ## missing, so callers can fall back to the generated versions.
 
 const DIR := "res://assets/models/props/"
+const MP := preload("res://scripts/world/material_polish.gd")
 
 static var _cache := {}
 
@@ -23,6 +24,7 @@ static func place(parent: Node, file: String, pos: Vector3, rot := Vector3.ZERO,
 	n.rotation = rot
 	n.scale = scale
 	parent.add_child(n)
+	MP.polish(n)
 	return n
 
 

@@ -20,6 +20,7 @@ const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const P := preload("res://scripts/world/props.gd")
 const M := preload("res://scripts/characters/mesh_lib.gd")
+const MP := preload("res://scripts/world/material_polish.gd")
 const H := preload("res://scripts/world/heraldry.gd")
 const LOOKS_PATH := "res://data/characters.json"
 
@@ -259,6 +260,8 @@ func _build_from_model(path: String) -> void:
 	if _face_mi != null:
 		mouth = null
 	inst.free()
+	# Give the imported materials surface detail, sheen and skin scattering.
+	MP.polish(self)
 
 
 # --- Body ---------------------------------------------------------------------------
@@ -791,10 +794,11 @@ func _animate_sit() -> void:
 	r_hip.rotation.z = 0.1
 	l_knee.rotation.x = -PI * 0.5 + 0.25
 	r_knee.rotation.x = -PI * 0.5 + 0.25
-	l_shoulder.rotation = Vector3(0.45, 0, -0.18)
-	r_shoulder.rotation = Vector3(0.45, 0, 0.18)
-	l_elbow.rotation.x = 0.9
-	r_elbow.rotation.x = 0.9
+	# Forearms laid along the throne's arms, hands resting at the front ends.
+	l_shoulder.rotation = Vector3(0.28, 0, -0.22)
+	r_shoulder.rotation = Vector3(0.28, 0, 0.22)
+	l_elbow.rotation.x = 0.62
+	r_elbow.rotation.x = 0.62
 	_animate_talk_body(0.6)
 	_apply_gesture()
 
