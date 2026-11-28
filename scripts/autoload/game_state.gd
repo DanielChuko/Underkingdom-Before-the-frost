@@ -51,6 +51,7 @@ func _register_inputs() -> void:
 		"move_left": [KEY_A, KEY_LEFT],
 		"move_right": [KEY_D, KEY_RIGHT],
 		"sprint": [KEY_SHIFT],
+		"jump": [KEY_SPACE],
 		"interact": [KEY_E],
 		"advance": [KEY_SPACE, KEY_ENTER, KEY_KP_ENTER],
 		"journal": [KEY_J, KEY_TAB],

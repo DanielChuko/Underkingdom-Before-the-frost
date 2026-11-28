@@ -6,14 +6,15 @@ extends RefCounted
 const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const F := preload("res://scripts/world/furniture.gd")
+const M := preload("res://scripts/world/models.gd")
 
 
 static func stone() -> Material:
-	return S.get_material("stone_wall", Color(0.95, 0.93, 0.9), 2.4)
+	return S.get_material("stone_wall", Color(0.68, 0.66, 0.63), 2.4)
 
 
 static func stone_trim() -> Material:
-	return S.get_material("stone_wall", Color(0.72, 0.7, 0.68), 1.2)
+	return S.get_material("stone_wall", Color(0.5, 0.48, 0.46), 1.2)
 
 
 static func wood() -> Material:
@@ -58,12 +59,45 @@ static func beam(parent: Node, center: Vector3, length: float, axis := "x") -> v
 	G.box(parent, size, center, wood_dark(), false)
 
 
-static func barrel(parent: Node, pos: Vector3, height := 0.9) -> void:
+## A barrel: the supplied oak barrel models (closed, open, or small for
+## height under 0.8), with the old generated barrel as the fallback.
+static func barrel(parent: Node, pos: Vector3, height := 0.9, open := false) -> void:
+	var small := height < 0.8
+	var file := "barrel_small" if small else ("barrel_open" if open else "barrel_closed")
+	# Turn each barrel a little differently so the staves don't line up.
+	var m := model(parent, file, pos, fposmod(pos.x * 3.7 + pos.z * 1.3, TAU))
+	if m != null:
+		var h := 0.64 if small else 0.99
+		var r := 0.28 if small else 0.42
+		G.solid(parent, Vector3(r * 1.6, h, r * 1.6), pos + Vector3(0, h * 0.5, 0))
+		return
 	var body := G.cylinder(parent, 0.32, height, pos + Vector3(0, height * 0.5, 0), wood(), 0.29)
 	for y in [0.15, height - 0.15]:
 		G.cylinder(parent, 0.325, 0.05, pos + Vector3(0, y, 0), iron(), 0.315)
 	G.cylinder(parent, 0.34, 0.05, pos + Vector3(0, height * 0.5, 0), iron())
 	G.solid(parent, Vector3(0.62, height, 0.62), pos + Vector3(0, height * 0.5, 0))
+
+
+## Places one of the supplied prop models (see models.gd); null if missing.
+static func model(parent: Node, file: String, pos: Vector3, yaw := 0.0, scale := Vector3.ONE) -> Node3D:
+	return M.place(parent, file, pos, Vector3(0, yaw, 0), scale)
+
+
+## A woven carpet from the supplied models: "royal" or "worn" runners
+## (1.8 x 7.6 m, laid end to end to cover length) or the "side" rug
+## (1.4 x 2.3 m). The long side runs along the yaw direction.
+static func carpet(parent: Node, kind: String, center: Vector3, length: float, width: float, yaw := 0.0) -> bool:
+	var file := "carpet_side" if kind == "side" else "carpet_%s_runner" % kind
+	var piece := 2.3 if kind == "side" else 7.6
+	var native_w := 1.4 if kind == "side" else 1.8
+	var count := maxi(1, roundi(length / piece))
+	var step := length / count
+	var dir := Vector3(sin(yaw), 0, cos(yaw))
+	for i in count:
+		var c := center + dir * ((i - (count - 1) * 0.5) * step) + Vector3(0, 0.004, 0)
+		if model(parent, file, c, yaw, Vector3(width / native_w, 1.0, step / piece)) == null:
+			return false
+	return true
 
 
 static func crate(parent: Node, pos: Vector3, size := 0.7, yaw := 0.0) -> void:
@@ -149,4 +183,4 @@ static func chandelier(parent: Node, pos: Vector3, ceiling_y: float) -> void:
 		var p := pos + Vector3(cos(a) * 0.65, 0.12, sin(a) * 0.65)
 		G.cylinder(parent, 0.03, 0.16, p, G.mat(Color(0.93, 0.9, 0.8)))
 		G.flame(parent, p + Vector3(0, 0.11, 0), 0.35)
-	G.light(parent, pos + Vector3(0, -0.3, 0), Color(1.0, 0.78, 0.5), 2.6, 16.0, true, 0.08)
+	G.light(parent, pos + Vector3(0, -0.3, 0), Color(1.0, 0.72, 0.45), 2.8, 16.0, true, 0.08)

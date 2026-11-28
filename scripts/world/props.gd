@@ -5,6 +5,7 @@ extends RefCounted
 
 const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
+const PM := preload("res://scripts/world/models.gd")
 
 
 static func m(color: Color, roughness := 0.6, metallic := 0.0) -> StandardMaterial3D:
@@ -63,6 +64,8 @@ static func pivot(parent: Node, pos: Vector3, rot := Vector3.ZERO) -> Node3D:
 # --- Food -------------------------------------------------------------------------
 
 static func apple(parent: Node, pos: Vector3, color := Color(0.72, 0.1, 0.08)) -> void:
+	if PM.place(parent, "apple_green" if color.g > color.r else "apple_red", pos, Vector3(0, _spin(pos), 0)) != null:
+		return
 	ellipsoid(parent, pos + Vector3(0, 0.036, 0), Vector3(0.042, 0.038, 0.042), m(color, 0.35))
 	G.cylinder(parent, 0.003, 0.02, pos + Vector3(0, 0.08, 0), m(Color(0.3, 0.2, 0.1)))
 	var leaf := ellipsoid(parent, pos + Vector3(0.012, 0.082, 0), Vector3(0.016, 0.003, 0.008), m(Color(0.25, 0.5, 0.15)))
@@ -70,6 +73,8 @@ static func apple(parent: Node, pos: Vector3, color := Color(0.72, 0.1, 0.08)) -
 
 
 static func pear(parent: Node, pos: Vector3) -> void:
+	if PM.place(parent, "pear", pos, Vector3(0, _spin(pos), 0)) != null:
+		return
 	var c := m(Color(0.65, 0.68, 0.2), 0.4)
 	ellipsoid(parent, pos + Vector3(0, 0.035, 0), Vector3(0.037, 0.035, 0.037), c)
 	ellipsoid(parent, pos + Vector3(0, 0.08, 0), Vector3(0.022, 0.03, 0.022), c)
@@ -77,6 +82,9 @@ static func pear(parent: Node, pos: Vector3) -> void:
 
 
 static func carrot(parent: Node, pos: Vector3, yaw := 0.0) -> void:
+	# The supplied carrot stands upright from its tip; lay it on its side.
+	if PM.place(parent, "carrot", pos + Vector3(0, 0.035, 0), Vector3(0, yaw, PI * 0.5)) != null:
+		return
 	var p := pivot(parent, pos + Vector3(0, 0.02, 0), Vector3(0, yaw, PI * 0.5))
 	G.cylinder(p, 0.0, 0.15, Vector3.ZERO, m(Color(0.92, 0.45, 0.08), 0.5), 0.02)
 	for i in 3:
@@ -85,6 +93,8 @@ static func carrot(parent: Node, pos: Vector3, yaw := 0.0) -> void:
 
 
 static func cabbage(parent: Node, pos: Vector3) -> void:
+	if PM.place(parent, "cabbage", pos, Vector3(0, _spin(pos), 0)) != null:
+		return
 	ellipsoid(parent, pos + Vector3(0, 0.07, 0), Vector3(0.075, 0.07, 0.075), m(Color(0.62, 0.78, 0.42), 0.5))
 	for i in 5:
 		var a := TAU * i / 5.0
@@ -93,11 +103,15 @@ static func cabbage(parent: Node, pos: Vector3) -> void:
 
 
 static func onion(parent: Node, pos: Vector3) -> void:
+	if PM.place(parent, "onion", pos, Vector3(0, _spin(pos), 0)) != null:
+		return
 	ellipsoid(parent, pos + Vector3(0, 0.035, 0), Vector3(0.04, 0.035, 0.04), m(Color(0.78, 0.55, 0.3), 0.35))
 	G.cylinder(parent, 0.012, 0.03, pos + Vector3(0, 0.075, 0), m(Color(0.7, 0.5, 0.28)), 0.0)
 
 
 static func potato(parent: Node, pos: Vector3, yaw := 0.0) -> void:
+	if PM.place(parent, "potato", pos, Vector3(0, yaw, 0)) != null:
+		return
 	var p := ellipsoid(parent, pos + Vector3(0, 0.025, 0), Vector3(0.048, 0.03, 0.036), m(Color(0.62, 0.46, 0.28), 0.9))
 	p.rotation.y = yaw
 
@@ -136,6 +150,8 @@ static func ham(parent: Node, top: Vector3) -> void:
 
 ## A roast joint with a bone and a fat cap, lying on a surface.
 static func roast(parent: Node, pos: Vector3, yaw := 0.0) -> void:
+	if PM.place(parent, "roast_meat", pos, Vector3(0, yaw, 0)) != null:
+		return
 	var p := pivot(parent, pos, Vector3(0, yaw, 0))
 	ellipsoid(p, Vector3(0, 0.065, 0), Vector3(0.15, 0.07, 0.1), m(Color(0.55, 0.2, 0.12), 0.45))
 	ellipsoid(p, Vector3(-0.02, 0.1, 0), Vector3(0.12, 0.04, 0.085), m(Color(0.72, 0.45, 0.3), 0.4))
@@ -176,6 +192,8 @@ static func cutting_board(parent: Node, pos: Vector3, yaw := 0.0) -> void:
 
 
 static func plate(parent: Node, pos: Vector3, color := Color(0.6, 0.6, 0.62)) -> void:
+	if PM.place(parent, "plate_wood", pos, Vector3(0, _spin(pos), 0)) != null:
+		return
 	var mt := m(color, 0.35, 0.6)
 	G.cylinder(parent, 0.11, 0.012, pos + Vector3(0, 0.006, 0), mt)
 	var rim := torus(parent, pos + Vector3(0, 0.014, 0), 0.105, 0.125, mt)
@@ -183,6 +201,8 @@ static func plate(parent: Node, pos: Vector3, color := Color(0.6, 0.6, 0.62)) ->
 
 
 static func goblet(parent: Node, pos: Vector3, color := Color(0.85, 0.65, 0.25)) -> void:
+	if PM.place(parent, "goblet_royal", pos) != null:
+		return
 	var mt := m(color, 0.3, 0.9)
 	G.cylinder(parent, 0.032, 0.008, pos + Vector3(0, 0.004, 0), mt)
 	G.cylinder(parent, 0.007, 0.06, pos + Vector3(0, 0.035, 0), mt)
@@ -201,6 +221,8 @@ static func jug(parent: Node, pos: Vector3, color := Color(0.62, 0.42, 0.3), yaw
 
 
 static func bowl(parent: Node, pos: Vector3, radius := 0.12, color := Color(0.55, 0.38, 0.24)) -> void:
+	if PM.place(parent, "bowl_clay", pos, Vector3(0, _spin(pos), 0), Vector3.ONE * (radius / 0.115)) != null:
+		return
 	var wood := m(color, 0.6)
 	G.cylinder(parent, radius * 0.6, radius * 0.5, pos + Vector3(0, radius * 0.25, 0), wood, radius)
 	var rim := torus(parent, pos + Vector3(0, radius * 0.5, 0), radius * 0.9, radius * 1.05, wood)
@@ -286,6 +308,11 @@ static func candle_holder(parent: Node, pos: Vector3) -> void:
 	dish_rim.scale = Vector3(1, 0.5, 1)
 	var handle := torus(parent, pos + Vector3(0.07, 0.03, 0), 0.015, 0.024, brass)
 	handle.rotation.x = PI * 0.5
+	# The supplied lit candle (its flame is a glowing mesh), with a small
+	# particle flame over it for movement.
+	if PM.place(parent, "candle_lit", pos + Vector3(0, 0.012, 0), Vector3.ZERO, Vector3(1.2, 1.0, 1.2)) != null:
+		G.flame(parent, pos + Vector3(0, 0.2, 0), 0.16)
+		return
 	G.cylinder(parent, 0.022, 0.13, pos + Vector3(0, 0.075, 0), m(Color(0.93, 0.9, 0.8), 0.5))
 	ellipsoid(parent, pos + Vector3(0.018, 0.12, 0), Vector3(0.008, 0.02, 0.008), m(Color(0.93, 0.9, 0.8), 0.5))
 	G.flame(parent, pos + Vector3(0, 0.155, 0), 0.28)
@@ -312,6 +339,10 @@ static func book_stack(parent: Node, pos: Vector3, count := 3) -> void:
 ## A flower in a clay pot: curved stem, leaves and a ring of petals.
 ## wilt 0 = full bloom, 1 = withered (for later acts).
 static func potted_flower(parent: Node, pos: Vector3, wilt := 0.0) -> void:
+	# The supplied flower in its five stages, from blooming to withered.
+	var stages := ["flower_01_blooming", "flower_02_fading", "flower_03_drooping", "flower_04_withering", "flower_05_withered"]
+	if PM.place(parent, stages[clampi(roundi(wilt * 4.0), 0, 4)], pos) != null:
+		return
 	var clay := m(Color(0.7, 0.38, 0.24), 0.8)
 	G.cylinder(parent, 0.075, 0.15, pos + Vector3(0, 0.075, 0), clay, 0.1)
 	torus(parent, pos + Vector3(0, 0.15, 0), 0.092, 0.112, clay)
@@ -334,3 +365,19 @@ static func potted_flower(parent: Node, pos: Vector3, wilt := 0.0) -> void:
 		var a := TAU * i / 7.0
 		var petal := ellipsoid(head, Vector3(cos(a) * 0.028, 0.008, sin(a) * 0.028), Vector3(0.026, 0.005, 0.014), m(petal_col, 0.5))
 		petal.rotation = Vector3(0, -a, 0.35 + wilt * 0.9)
+
+
+# --- Supplied models only ------------------------------------------------------------
+# These have no generated stand-in; nothing is placed if the model is missing.
+
+## A food or tableware model by name (e.g. "garlic", "grapes", "plum",
+## "fish_whole", "steak_raw", "chicken_drumstick", "sausage_link",
+## "tankard_wood", "cup_clay", "plate_ceramic", "knife_table", "candle_unlit").
+static func item(parent: Node, file: String, pos: Vector3, yaw := 0.0) -> void:
+	PM.place(parent, file, pos, Vector3(0, yaw, 0))
+
+
+## A stable pseudo-random turn from a position, so repeated items don't all
+## face the same way.
+static func _spin(pos: Vector3) -> float:
+	return fposmod(pos.x * 7.31 + pos.z * 3.17 + pos.y * 11.7, TAU)

@@ -2,14 +2,16 @@
 """Fit a static, multi-part glTF character onto the game's procedural skeleton,
 keeping the model's own proportions, textures and blend shapes.
 
-    python3 tools/rig_model_v2.py assets/models/source/medieval_guard_v5.glb \\
-        assets/models/medieval_guard_v5_rigged.glb
+    python3 tools/rig_model_v2.py assets/models/source/Guard_Talking.glb \\
+        assets/models/guard_unarmed_rigged.glb
 
-Writes two files:
+Writes two files (three when the model has face animations):
   <out>.glb       one node per part named "<joint>__<part>", geometry in that
                   joint's local space (the game re-parents each part)
   <out>.rig.json  the model's own joint positions, which the game uses to build
                   the skeleton for this character instead of its default one
+  <out>.face.json the model's blend-shape animations (e.g. Talk_Normal,
+                  Idle_Blink) as keyed weights, which the game plays on the face
 
 What it does:
 - Turns the model to face -Z (the game's forward).
@@ -132,6 +134,8 @@ def side_of(name):
 def classify(name):
     n = name.lower()
     s = side_of(name)
+    if "strap" in n and ("apron" in n or "shoulder" in n):
+        return "chest"
     if s:
         if "sleeve" in n or "upper arm" in n or "shoulder" in n:
             return s + "_upper"
@@ -153,23 +157,67 @@ def classify(name):
         return "cape"
     if any(k in n for k in ("collar link", "clasp", "pendant", "shoulder mantle", "linen collar")):
         return "chest"
-    if any(k in n for k in ("coat", "hauberk", "surcoat", "gambeson", "torso", "tunic")):
+    if any(k in n for k in ("coat", "hauberk", "surcoat", "gambeson", "torso", "tunic", "vest", "apron")):
         return "chest"
     return "head"
+
+
+def node_matrix(node):
+    if "matrix" in node:
+        return np.array(node["matrix"], dtype=np.float64).reshape(4, 4).T
+    m = np.eye(4)
+    if "scale" in node:
+        m = np.diag(list(node["scale"]) + [1.0]) @ m
+    if "rotation" in node:
+        x, y, z, w = node["rotation"]
+        r = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+        rm = np.eye(4)
+        rm[:3, :3] = r
+        m = rm @ m
+    if "translation" in node:
+        t = np.eye(4)
+        t[:3, 3] = node["translation"]
+        m = t @ m
+    return m
+
+
+def scene_nodes(j):
+    """(node index, world matrix) for every node in the active scene; nodes left
+    out of the scene (old parts a model keeps but no longer shows) are skipped."""
+    out = []
+    scene = j["scenes"][j.get("scene", 0)] if j.get("scenes") else {"nodes": list(range(len(j["nodes"])))}
+    stack = [(i, np.eye(4)) for i in scene["nodes"]]
+    while stack:
+        i, parent = stack.pop()
+        world = parent @ node_matrix(j["nodes"][i])
+        out.append((i, world))
+        stack += [(c, world) for c in j["nodes"][i].get("children", [])]
+    return out
 
 
 def main(src, dst):
     j, binary = read_glb(src)
     parts = {}
-    for node in j["nodes"]:
+    for index, world in scene_nodes(j):
+        node = j["nodes"][index]
         if "mesh" not in node:
             continue
         mesh = j["mesh" + "es"][node["mesh"]]
         prim = mesh["primitives"][0]
         pos = accessor(j, binary, prim["attributes"]["POSITION"]).astype(np.float64)
+        pos = pos @ world[:3, :3].T + world[:3, 3]
         pos[:, 0] *= -1  # face -Z
         pos[:, 2] *= -1
+        nrm = None
+        if "NORMAL" in prim["attributes"]:
+            nrm = accessor(j, binary, prim["attributes"]["NORMAL"]).astype(np.float64) @ world[:3, :3].T
+            nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12
+            nrm[:, 0] *= -1
+            nrm[:, 2] *= -1
         p = {
+            "nrm": nrm,
             "name": node["name"], "pos": pos, "prim": prim, "mesh": mesh,
             "uv": accessor(j, binary, prim["attributes"]["TEXCOORD_0"]) if "TEXCOORD_0" in prim["attributes"] else None,
             "idx": accessor(j, binary, prim["indices"]).reshape(-1) if "indices" in prim else np.arange(len(pos)),
@@ -180,7 +228,19 @@ def main(src, dst):
             d[:, 0] *= -1
             d[:, 2] *= -1
             p["targets"].append(d)
-        parts[node["name"]] = p
+        # Some models mark sides with a trailing " 1" / " -1" instead of
+        # Left/Right: name the side from where the part sits (+X is the rig's right).
+        # A part's side is taken from where it sits, not from its name, as
+        # some models name a few parts for the opposite side.
+        sided = side_of(p["name"]) is not None or re.search(r"\s-?1$", p["name"])
+        if sided and abs(pos[:, 0].mean()) > 0.03:
+            side = "Right" if pos[:, 0].mean() > 0.0 else "Left"
+            base = re.sub(r"\s-?1$", "", p["name"])
+            base = re.sub(r"\b(left|right)\b\s*", "", base, flags=re.I).strip()
+            if side_of(p["name"]) is not None and side.lower()[0] != side_of(p["name"]):
+                print(f"  note: '{p['name']}' sits on the {side.lower()}")
+            p["name"] = side + " " + base
+        parts[p["name"]] = p
 
     def pts(kind, skip=()):
         ks = [p for p in parts.values() if classify(p["name"]) == kind and not any(k in p["name"].lower() for k in skip)]
@@ -240,6 +300,9 @@ def main(src, dst):
                 "material": part["prim"].get("material", 0)}
         if part["uv"] is not None:
             prim["attributes"]["TEXCOORD_0"] = w.add(part["uv"][used], "VEC2")
+        if part["nrm"] is not None:
+            n = part["nrm"][used] @ rot.T if rot is not None else part["nrm"][used]
+            prim["attributes"]["NORMAL"] = w.add(n.astype(np.float32), "VEC3")
         mesh = {"name": name, "primitives": [prim]}
         if part["targets"]:
             prim["targets"] = []
@@ -348,6 +411,31 @@ def main(src, dst):
     glb = struct.pack("<4sII", b"glTF", 2, 12 + 8 + len(js) + 8 + len(blob))
     glb += struct.pack("<I4s", len(js), b"JSON") + js + struct.pack("<I4s", len(blob), b"BIN\0") + blob
     open(dst, "wb").write(glb)
+
+    # --- Face animations (blend-shape weights) as a sidecar the game plays -------------
+    face_nodes = {i for i, n in enumerate(j["nodes"]) if "mesh" in n and j["meshes"][n["mesh"]]["primitives"][0].get("targets")}
+    clips = {}
+    for anim in j.get("animations", []):
+        for ch in anim["channels"]:
+            if ch["target"].get("path") != "weights" or ch["target"].get("node") not in face_nodes:
+                continue
+            node = j["nodes"][ch["target"]["node"]]
+            count = len(j["meshes"][node["mesh"]]["primitives"][0]["targets"])
+            smp = anim["samplers"][ch["sampler"]]
+            times = accessor(j, binary, smp["input"]).reshape(-1)
+            vals = accessor(j, binary, smp["output"]).reshape(len(times), -1)
+            if smp.get("interpolation") == "CUBICSPLINE":
+                vals = vals[:, count:2 * count]
+            clips[anim.get("name", f"clip{len(clips)}")] = {
+                "times": [round(float(t), 4) for t in times],
+                "weights": [[round(float(x), 4) for x in row[:count]] for row in vals],
+            }
+    if clips:
+        face_mesh = j["meshes"][j["nodes"][min(face_nodes)]["mesh"]]
+        names = face_mesh.get("extras", {}).get("targetNames", [])
+        face_path = re.sub(r"\.glb$", ".face.json", dst)
+        json.dump({"shapes": names, "clips": clips}, open(face_path, "w"), separators=(",", ":"))
+        print(f"wrote {face_path} ({', '.join(clips)})")
 
     rig = {k: [round(float(x), 4) for x in np.atleast_1d(v)] for k, v in joints.items()}
     rig_path = re.sub(r"\.glb$", ".rig.json", dst)

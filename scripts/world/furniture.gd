@@ -11,6 +11,7 @@ const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const D := preload("res://scripts/world/decor.gd")
 const M := preload("res://scripts/characters/mesh_lib.gd")
+const PM := preload("res://scripts/world/models.gd")
 
 static var _two_sided: Dictionary = {}
 
@@ -126,6 +127,21 @@ static func chest(parent: Node, pos: Vector3, yaw := 0.0, size := Vector3(0.95, 
 ## stretcher locked with wedges. Long axis is local X. Top surface at size.y.
 static func trestle_table(parent: Node, center: Vector3, size: Vector3, yaw := 0.0, top_material: Material = null) -> Node3D:
 	var n := _node(parent, center, yaw)
+	# The supplied plank tables, stretched to size: banquet tables laid end to
+	# end for long ones, the kitchen table for short ones.
+	if PM.exists("table_banquet"):
+		var long := size.x >= 2.0
+		var count := maxi(1, roundi(size.x / 3.1)) if long else 1
+		var piece := size.x / count
+		for i in count:
+			var x := -size.x * 0.5 + piece * (i + 0.5)
+			if long:
+				PM.place(n, "table_banquet", Vector3(x, 0, 0), Vector3.ZERO, Vector3(piece / 3.1, size.y / 0.84, size.z / 1.116))
+			else:
+				PM.place(n, "table_kitchen", Vector3(x, 0, 0), Vector3.ZERO, Vector3(piece / 1.65, size.y / 0.82, size.z / 0.776))
+		G.solid(n, Vector3(size.x, 0.1, size.z), Vector3(0, size.y - 0.05, 0))
+		G.solid(n, Vector3(size.x - 0.4, size.y - 0.1, 0.3), Vector3(0, (size.y - 0.1) * 0.5, 0))
+		return n
 	var oak := D.wood_dark()
 	var top_mat: Material = top_material if top_material != null else D.wood()
 	var boards := 3 if size.z > 0.75 else 2
@@ -157,6 +173,13 @@ static func trestle_table(parent: Node, center: Vector3, size: Vector3, yaw := 0
 ## A plank bench on slab ends with a rail under the seat. Long axis is local X.
 static func bench(parent: Node, center: Vector3, length: float, yaw := 0.0, height := 0.45) -> Node3D:
 	var n := _node(parent, center, yaw)
+	if PM.exists("bench"):
+		var count := maxi(1, roundi(length / 1.6))
+		var piece := length / count
+		for i in count:
+			PM.place(n, "bench", Vector3(-length * 0.5 + piece * (i + 0.5), 0, 0), Vector3.ZERO, Vector3(piece / 1.6, height / 0.49, 1.0))
+		G.solid(n, Vector3(length, height, 0.3), Vector3(0, height * 0.5, 0))
+		return n
 	var oak := D.wood_dark()
 	_b(n, Vector3(length, 0.05, 0.3), Vector3(0, height - 0.025, 0), D.wood(), 0.008)
 	var inset := minf(0.35, length * 0.15)
@@ -172,6 +195,9 @@ static func bench(parent: Node, center: Vector3, length: float, yaw := 0.0, heig
 ## A joined table on four turned legs with aprons and low stretchers.
 static func joined_table(parent: Node, center: Vector3, size: Vector3, yaw := 0.0) -> Node3D:
 	var n := _node(parent, center, yaw)
+	if PM.place(n, "table_kitchen", Vector3.ZERO, Vector3.ZERO, Vector3(size.x / 1.65, size.y / 0.82, size.z / 0.776)) != null:
+		G.solid(n, size, Vector3(0, size.y * 0.5, 0))
+		return n
 	var oak := D.wood_dark()
 	_b(n, Vector3(size.x, 0.04, size.z), Vector3(0, size.y - 0.02, 0), D.wood(), 0.008)
 	var lx := size.x * 0.5 - 0.07
@@ -205,6 +231,10 @@ static func round_table(parent: Node, center: Vector3, radius := 0.26, height :=
 ## shaped back rails. The sitter faces local -Z.
 static func chair(parent: Node, pos: Vector3, yaw := 0.0) -> Node3D:
 	var n := _node(parent, pos, yaw)
+	# The supplied wooden chair has its back at -Z, so it is turned round.
+	if PM.place(n, "chair_wooden", Vector3.ZERO, Vector3(0, PI, 0)) != null:
+		G.solid(n, Vector3(0.48, 0.46, 0.46), Vector3(0, 0.23, 0))
+		return n
 	var oak := D.wood_dark()
 	var seat_h := 0.46
 	_b(n, Vector3(0.46, 0.035, 0.42), Vector3(0, seat_h, -0.01), D.wood(), 0.008)
@@ -226,6 +256,9 @@ static func chair(parent: Node, pos: Vector3, yaw := 0.0) -> Node3D:
 ## A three-legged stool with a round seat.
 static func stool(parent: Node, pos: Vector3, height := 0.42) -> Node3D:
 	var n := _node(parent, pos, randf() * TAU)
+	if PM.place(n, "stool", Vector3.ZERO, Vector3.ZERO, Vector3(1.0, height / 0.488, 1.0)) != null:
+		G.solid(n, Vector3(0.44, height, 0.42), Vector3(0, height * 0.5, 0))
+		return n
 	var oak := D.wood_dark()
 	_mesh(n, M.turned([[0.0, 0.15], [-0.01, 0.16], [-0.035, 0.155], [-0.04, 0.14]], 22), Vector3(0, height, 0), D.wood())
 	for i in 3:
@@ -270,6 +303,15 @@ static func throne(parent: Node, pos: Vector3, yaw := 0.0, cushion := Color(0.42
 	_mesh(n, M.turned([[0.0, 0.04], [0.04, 0.05], [0.09, 0.03], [0.14, 0.0]], 12), Vector3(0, seat_h + 2.1, 0.36), gold)
 	G.solid(n, Vector3(1.1, seat_h, 0.85), Vector3(0, seat_h * 0.5, 0))
 	G.solid(n, Vector3(1.1, 1.9, 0.12), Vector3(0, seat_h + 0.95, 0.36))
+	return n
+
+
+## A low footstool with a cushion, for a seated king's feet.
+static func footstool(parent: Node, pos: Vector3, yaw := 0.0, cushion := Color(0.42, 0.08, 0.1)) -> Node3D:
+	var n := _node(parent, pos, yaw)
+	var oak := S.get_material("wood_dark", Color(0.75, 0.62, 0.55), 1.2, false)
+	_b(n, Vector3(0.62, 0.11, 0.32), Vector3(0, 0.055, 0), oak, 0.012)
+	_mesh(n, M.cushion(Vector3(0.56, 0.07, 0.28), 0.35, 0.01, 0.0), Vector3(0, 0.14, 0), _cloth("wool", cushion, 0.4))
 	return n
 
 

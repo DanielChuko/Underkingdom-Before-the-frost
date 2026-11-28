@@ -19,6 +19,7 @@ const S := preload("res://scripts/world/surfaces.gd")
 const D := preload("res://scripts/world/decor.gd")
 const P := preload("res://scripts/world/props.gd")
 const F := preload("res://scripts/world/furniture.gd")
+const H := preload("res://scripts/world/heraldry.gd")
 
 const CORRIDOR_H := 4.0
 const CORRIDOR_C_H := 5.0
@@ -40,8 +41,6 @@ var floor_mat: Material
 var ceiling_mat: Material
 var wood: Material
 var wood_dark: Material
-var red_cloth: Material
-var gold: Material
 var plaster: Material
 
 
@@ -91,14 +90,12 @@ func build(for_act: int) -> Dictionary:
 
 func _materials() -> void:
 	stone = D.stone()
-	stone_dark = S.get_material("stone_wall", Color(0.62, 0.6, 0.58), 1.6)
-	floor_mat = S.get_material("flagstone", Color(0.95, 0.92, 0.88), 3.0)
-	ceiling_mat = S.get_material("wood_dark", Color(0.6, 0.58, 0.56), 2.5)
+	stone_dark = S.get_material("stone_wall", Color(0.46, 0.44, 0.42), 1.6)
+	floor_mat = S.get_material("flagstone", Color(0.66, 0.63, 0.6), 3.0)
+	ceiling_mat = S.get_material("wood_dark", Color(0.42, 0.4, 0.38), 2.5)
 	wood = D.wood()
 	wood_dark = D.wood_dark()
-	red_cloth = S.get_material("cloth", Color(0.62, 0.08, 0.09), 0.8)
-	gold = G.mat(Color(0.9, 0.7, 0.25), 0.4, 0.8, 0.35)
-	plaster = S.get_material("plaster", Color.WHITE, 3.0)
+	plaster = S.get_material("plaster", Color(0.74, 0.7, 0.64), 3.0)
 
 
 func _locked(hinge: Vector3, along: Vector3, label := "door") -> void:
@@ -144,8 +141,13 @@ func _corridors() -> void:
 	_locked(Vector3(11.22, 0, -29.4), Vector3(0, 0, -1))
 	_locked(Vector3(13.78, 0, -26.4), Vector3(0, 0, -1))
 
-	# Crest above the hall entrance (corridor side).
-	_crest(Vector3(12.5, 4.45, -33.8), 0.85, 0.0)
+	# The kingdom's shield above the hall entrance (corridor side), and
+	# banners on the way to the hall.
+	H.shield(root, Vector3(12.5, 4.3, -33.85), Vector3(0, 0, 1), "shield_sun_pale", 1.0)
+	H.banner(root, Vector3(-1.35, 3.7, -4.8), Vector3(1, 0, 0), 0.75)
+	H.banner(root, Vector3(1.35, 3.7, -2.8), Vector3(-1, 0, 0), 0.75)
+	H.banner(root, Vector3(11.15, 4.7, -32.4), Vector3(1, 0, 0), 0.85)
+	H.banner(root, Vector3(13.85, 4.7, -29.0), Vector3(-1, 0, 0), 0.85)
 
 	# Torches.
 	G.torch(root, Vector3(-1.35, 2.4, -3.0), Vector3(1, 0, 0))
@@ -154,10 +156,15 @@ func _corridors() -> void:
 	G.torch(root, Vector3(7.0, 2.4, -16.15), Vector3(0, 0, -1))
 	G.torch(root, Vector3(11.15, 2.4, -21.0), Vector3(1, 0, 0))
 	G.torch(root, Vector3(13.85, 2.4, -31.5), Vector3(-1, 0, 0))
+	# More torches along the way, so no stretch of corridor is pitch black.
+	G.torch(root, Vector3(1.35, 2.4, -6.4), Vector3(-1, 0, 0), 1.8, 7.0)
+	G.torch(root, Vector3(-1.35, 2.4, -11.8), Vector3(1, 0, 0), 1.8, 7.0)
+	G.torch(root, Vector3(10.0, 2.4, -18.85), Vector3(0, 0, 1), 1.8, 7.0)
+	G.torch(root, Vector3(13.85, 2.4, -25.2), Vector3(-1, 0, 0), 1.8, 7.0)
 
 
 func _kings_hall() -> void:
-	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, S.get_material("flagstone", Color(1.0, 0.95, 0.9), 4.0), ceiling_mat)
+	G.floor_and_ceiling(root, 2.5, 22.5, -34.0, -58.0, HALL_H, S.get_material("flagstone", Color(0.7, 0.66, 0.62), 4.0), ceiling_mat)
 	G.wall(root, Vector2(2.35, -34), Vector2(22.65, -34), HALL_H, stone, [[12.5, 3.0, 3.4]])
 	G.wall(root, Vector2(2.35, -58), Vector2(22.65, -58), HALL_H, stone)
 	G.wall(root, Vector2(2.5, -34), Vector2(2.5, -58), HALL_H, stone)
@@ -168,19 +175,31 @@ func _kings_hall() -> void:
 	hall_doors.set_open(true, true)
 
 	# Carpet runner to the throne.
-	D.rug(root, Vector3(12.5, 0, -45.0), Vector2(2.6, 21.0), Color(0.6, 0.07, 0.08), Color(0.85, 0.62, 0.22))
+	if not D.carpet(root, "royal", Vector3(12.5, 0, -45.0), 21.0, 2.4):
+		D.rug(root, Vector3(12.5, 0, -45.0), Vector2(2.6, 21.0), Color(0.6, 0.07, 0.08), Color(0.85, 0.62, 0.22))
 
-	# Great crest on the far wall.
-	_crest(Vector3(12.5, 5.8, -57.8), 3.0, 0.0)
+	# The great shield of the kingdom on the far wall, flanked by two
+	# standing flags.
+	H.shield(root, Vector3(12.5, 5.8, -57.85), Vector3(0, 0, 1), "shield_sun_bend", 3.2)
+	H.standard(root, Vector3(8.0, 0, -57.35), 0.0, 1.6)
+	H.standard(root, Vector3(14.3, 0, -57.35), 0.0, 1.6)
 
 	# Throne under the crest.
 	G.box(root, Vector3(2.0, 0.4, 1.8), Vector3(12.5, 0.2, -55.9), stone_dark)
-	F.throne(root, Vector3(12.5, 0.4, -55.95), PI, Color(0.42, 0.08, 0.1))
+	# The supplied throne model faces +Z (down the hall). At 80% scale its
+	# cushion is 0.6 m high, which is humanoid.gd's SEAT_HEIGHT.
+	if D.model(root, "royal_throne", Vector3(12.5, 0.4, -55.85), 0.0, Vector3.ONE * 0.8) != null:
+		G.solid(root, Vector3(1.0, 0.6, 0.75), Vector3(12.5, 0.7, -55.8))
+		G.solid(root, Vector3(1.0, 1.9, 0.25), Vector3(12.5, 1.35, -56.15))
+	else:
+		F.throne(root, Vector3(12.5, 0.4, -55.95), PI, Color(0.42, 0.08, 0.1))
+	# A low cushioned footstool for the king's feet.
+	F.footstool(root, Vector3(12.5, 0.4, -55.28), PI, Color(0.42, 0.08, 0.1))
 
-	# Red banners bearing the crest on both side walls.
+	# The kingdom's banners on both side walls, hanging still.
 	for z in [-38.0, -44.0, -50.0]:
-		_banner(Vector3(2.68, 5.4, z), Vector3(1, 0, 0))
-		_banner(Vector3(22.32, 5.4, z), Vector3(-1, 0, 0))
+		H.banner(root, Vector3(2.65, 7.3, z), Vector3(1, 0, 0), 1.4)
+		H.banner(root, Vector3(22.35, 7.3, z), Vector3(-1, 0, 0), 1.4)
 
 	# Staircase along the east wall up to a landing with a (locked) door.
 	var step_count := 14
@@ -190,9 +209,17 @@ func _kings_hall() -> void:
 	for i in step_count:
 		var top := (i + 1) * rise / step_count
 		G.box(root, Vector3(3.35, top, step_depth), Vector3(20.675, top * 0.5, -44.0 - (i + 0.5) * step_depth), stone_dark, false)
+	# Invisible ramp over the steps. Its top surface runs from the foot of the
+	# stairs exactly to the edge of the landing (no lip to walk into on the way
+	# down), and it runs on below the hall floor at the bottom.
 	var slope := atan2(rise, run)
-	var ramp_len := sqrt(run * run + rise * rise) + 1.0
-	G.solid(root, Vector3(3.35, 0.1, ramp_len), Vector3(20.675, rise * 0.5 + 0.06, -49.0), Vector3(slope, 0, 0))
+	var up_slope := Vector3(0, rise, -run).normalized()
+	var ramp_normal := Vector3(0, run, rise).normalized()
+	var foot := Vector3(20.675, 0.0, -44.0)
+	var ramp_len := sqrt(run * run + rise * rise)
+	var start := foot - up_slope * 0.6
+	var centre := (start + foot + up_slope * ramp_len) * 0.5 - ramp_normal * 0.05
+	G.solid(root, Vector3(3.35, 0.1, ramp_len + 0.6), centre, Vector3(slope, 0, 0))
 	G.solid(root, Vector3(0.1, 3.0, 9.0), Vector3(18.95, 1.5, -49.5))
 	G.box(root, Vector3(3.35, rise, 3.85), Vector3(20.675, rise * 0.5, -55.925), stone_dark)
 	G.box(root, Vector3(0.15, 1.0, 3.85), Vector3(19.075, rise + 0.5, -55.925), wood_dark)
@@ -210,7 +237,7 @@ func _kings_hall() -> void:
 
 
 func _player_room() -> void:
-	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, S.get_material("wood_floor", Color.WHITE, 2.2), ceiling_mat)
+	G.floor_and_ceiling(root, -7.5, -1.5, -4.0, -10.0, ROOM_H, S.get_material("wood_floor", Color(0.72, 0.68, 0.64), 2.2), ceiling_mat)
 	G.wall(root, Vector2(-7.65, -4), Vector2(-1.5, -4), ROOM_H, plaster)
 	G.wall(root, Vector2(-7.65, -10), Vector2(-1.5, -10), ROOM_H, plaster)
 	G.wall(root, Vector2(-7.5, -4), Vector2(-7.5, -10), ROOM_H, plaster)
@@ -278,7 +305,7 @@ func _player_room() -> void:
 
 
 func _kitchen() -> void:
-	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, S.get_material("flagstone", Color(0.85, 0.82, 0.78), 2.2), ceiling_mat)
+	G.floor_and_ceiling(root, 1.5, 9.5, -3.0, -14.0, ROOM_H, S.get_material("flagstone", Color(0.6, 0.57, 0.54), 2.2), ceiling_mat)
 	G.wall(root, Vector2(1.5, -3), Vector2(9.65, -3), ROOM_H, stone)
 	G.wall(root, Vector2(1.5, -14), Vector2(9.65, -14), ROOM_H, stone)
 	G.wall(root, Vector2(9.5, -3), Vector2(9.5, -14), ROOM_H, stone)
@@ -303,6 +330,15 @@ func _kitchen() -> void:
 	P.carrot(root, Vector3(5.15, top, -9.0), 0.1)
 	P.jug(root, Vector3(6.55, top, -8.95), Color(0.62, 0.42, 0.3), 2.0)
 	P.bowl(root, Vector3(4.3, top, -8.4), 0.1)
+	# Fish, a raw steak, garlic and a string of sausages waiting to be cooked,
+	# a kitchen knife by the board and a cup for the cook.
+	P.item(root, "fish_whole", Vector3(5.75, top, -8.95), 0.0)
+	P.item(root, "steak_raw", Vector3(6.35, top, -8.5), 0.2)
+	P.item(root, "knife_kitchen", Vector3(5.6, top, -8.25), -0.4)
+	for i in 3:
+		P.item(root, "garlic", Vector3(4.85 + i * 0.07, top, -8.1 - (i % 2) * 0.05))
+	P.item(root, "sausage_link", Vector3(4.6, top, -8.6), 0.15)
+	P.item(root, "cup_clay", Vector3(6.6, top, -8.6))
 
 	# Fireplace on the south wall with a hanging pot.
 	G.box(root, Vector3(0.4, 1.7, 0.8), Vector3(4.6, 0.85, -3.55), stone_dark)
@@ -320,7 +356,7 @@ func _kitchen() -> void:
 		P.herb_bundle(root, Vector3(hx, ROOM_H - 0.28, -11.0), Color(0.35, 0.5, 0.22) if hx < 5.0 else Color(0.5, 0.45, 0.25))
 	G.flame(root, Vector3(5.2, 0.2, -3.5), 2.0)
 	G.flame(root, Vector3(5.8, 0.2, -3.55), 1.8)
-	G.light(root, Vector3(5.5, 0.9, -4.3), Color(1.0, 0.55, 0.25), 3.0, 9.0, true, 0.3)
+	G.light(root, Vector3(5.5, 0.9, -4.3), Color(1.0, 0.55, 0.25), 4.2, 11.0, true, 0.3)
 
 	# Open cabinet full of vegetables, fruit and meat on the north wall.
 	G.box(root, Vector3(2.4, 2.2, 0.05), Vector3(5.5, 1.1, -13.82), wood_dark, false)
@@ -364,7 +400,28 @@ func _kitchen() -> void:
 	P.ham(root, Vector3(5.6, 2.1, -13.45))
 	P.sausages(root, Vector3(6.35, 2.1, -13.45), 3)
 	G.solid(root, Vector3(2.4, 2.2, 0.55), Vector3(5.5, 1.1, -13.6))
-	G.torch(root, Vector3(2.0, 2.2, -3.15), Vector3(0, 0, -1), 1.5, 7.0)
+	# Kitchen light: torches on every wall and a candle lantern over the table.
+	G.torch(root, Vector3(2.0, 2.2, -3.15), Vector3(0, 0, -1), 1.8, 7.5)
+	G.torch(root, Vector3(9.35, 2.2, -6.0), Vector3(-1, 0, 0), 1.8, 7.5)
+	G.torch(root, Vector3(9.35, 2.2, -11.2), Vector3(-1, 0, 0), 1.8, 7.5)
+	G.torch(root, Vector3(1.65, 2.2, -12.0), Vector3(1, 0, 0), 1.6, 7.0, false)
+	G.torch(root, Vector3(3.2, 2.2, -13.85), Vector3(0, 0, 1), 1.6, 7.0, false)
+	_lantern(Vector3(5.5, ROOM_H, -8.5), 1.15)
+
+
+## A hanging iron candle lantern on a chain, lit from inside.
+func _lantern(ceiling: Vector3, drop: float) -> void:
+	var iron = D.iron()
+	var c := ceiling - Vector3(0, drop, 0)
+	G.box(root, Vector3(0.02, drop - 0.2, 0.02), ceiling - Vector3(0, (drop - 0.2) * 0.5, 0), iron, false)
+	G.cylinder(root, 0.13, 0.03, c + Vector3(0, 0.17, 0), iron)
+	G.cylinder(root, 0.15, 0.03, c - Vector3(0, 0.17, 0), iron)
+	for i in 4:
+		var a := TAU * i / 4.0 + PI / 4.0
+		G.box(root, Vector3(0.02, 0.34, 0.02), c + Vector3(cos(a) * 0.12, 0, sin(a) * 0.12), iron, false)
+	G.cylinder(root, 0.035, 0.12, c - Vector3(0, 0.09, 0), G.mat(Color(0.92, 0.88, 0.78)))
+	G.flame(root, c + Vector3(0, 0.0, 0), 0.5)
+	G.light(root, c, Color(1.0, 0.74, 0.46), 2.4, 9.0, false, 0.1)
 
 
 func _toilet() -> void:
@@ -418,15 +475,24 @@ func _architecture() -> void:
 		G.box(root, Vector3(20.0, 0.5, 0.45), Vector3(12.5, HALL_H - 0.25, z), wood_dark, false)
 	G.torch(root, Vector3(6.9, 2.6, -44.0), Vector3(1, 0, 0), 1.8, 9.0)
 	G.torch(root, Vector3(17.6, 2.6, -44.0), Vector3(-1, 0, 0), 1.8, 9.0)
+	# Torches on the other pillars and by the hall doors and the throne.
+	for z in [-38.0, -50.0]:
+		G.torch(root, Vector3(6.9, 2.6, z), Vector3(1, 0, 0), 1.6, 8.0, false)
+		G.torch(root, Vector3(17.6, 2.6, z), Vector3(-1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(2.65, 2.6, -35.6), Vector3(1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(22.35, 2.6, -35.6), Vector3(-1, 0, 0), 1.6, 8.0, false)
+	G.torch(root, Vector3(2.65, 2.6, -54.5), Vector3(1, 0, 0), 1.8, 9.0, false)
 	G.dust(root, Vector3(12.5, 3.0, -46.0), Vector3(8.0, 2.5, 10.0), 160)
 
 
 func _dressing() -> void:
 	# Corridor: shields, barrels and crates.
-	D.shield(root, Vector3(-1.35, 2.3, -10.5), Vector3(1, 0, 0), Color(0.45, 0.12, 0.12))
-	D.shield(root, Vector3(1.35, 2.3, -5.0), Vector3(-1, 0, 0), Color(0.2, 0.28, 0.5))
-	D.shield(root, Vector3(11.15, 2.6, -27.0), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
-	D.shield(root, Vector3(13.85, 2.6, -23.5), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+	H.shield(root, Vector3(-1.35, 2.3, -10.5), Vector3(1, 0, 0), "shield_sun_bend", 0.7)
+	H.shield(root, Vector3(1.35, 2.3, -5.0), Vector3(-1, 0, 0), "shield_sun_pale", 0.7)
+	H.shield(root, Vector3(11.15, 2.6, -27.0), Vector3(1, 0, 0), "shield_sun_pale", 0.7)
+	H.shield(root, Vector3(13.85, 2.6, -23.5), Vector3(-1, 0, 0), "shield_sun_bend", 0.7)
+	# A worn runner down the servants' corridor.
+	D.carpet(root, "worn", Vector3(0, 0, -9.5), 15.2, 1.6)
 	D.barrel(root, Vector3(-1.0, 0, -0.65))
 	D.barrel(root, Vector3(1.0, 0, -0.7))
 	D.crate(root, Vector3(-1.0, 0, -18.35), 0.6, 0.2)
@@ -446,22 +512,36 @@ func _dressing() -> void:
 		for z in [-39.2, -42.0, -44.8]:
 			P.candle_holder(root, Vector3(tx, 0.8, z))
 		P.bowl(root, Vector3(tx, 0.8, -40.6), 0.14)
-		for i in 5:
-			var a := TAU * i / 5.0
-			P.apple(root, Vector3(tx + cos(a) * 0.06, 0.84, -40.6 + sin(a) * 0.06), Color(0.72, 0.1, 0.08) if i % 2 else Color(0.85, 0.6, 0.12))
+		for i in 3:
+			var a := TAU * i / 3.0
+			P.apple(root, Vector3(tx + cos(a) * 0.045, 0.83, -40.6 + sin(a) * 0.045), Color(0.72, 0.1, 0.08) if i % 2 else Color(0.55, 0.65, 0.15))
+		P.item(root, "grapes", Vector3(tx, 0.86, -40.6), 0.4)
+		# Tankards and table knives at the places, plums and a platter of
+		# drumsticks between the candles.
+		for i in 6:
+			var z := -38.5 - i * 1.4
+			P.item(root, "tankard_wood", Vector3(tx - 0.33, 0.8, z + 0.2), PI if i % 2 else 0.0)
+			P.item(root, "knife_table", Vector3(tx - 0.1, 0.8, z - 0.05), PI * 0.5)
+			P.item(root, "knife_table", Vector3(tx + 0.44, 0.8, z + 0.05), PI * 0.5)
+		for i in 3:
+			P.item(root, "plum", Vector3(tx + 0.12 + i * 0.05, 0.8, -41.2 + (i % 2) * 0.04))
+		P.item(root, "plate_ceramic", Vector3(tx, 0.8, -45.3))
+		for i in 3:
+			P.item(root, "chicken_drumstick", Vector3(tx + (i - 1) * 0.06, 0.81 + (i % 2) * 0.02, -45.3), 1.2 + i * 0.5)
 		P.bread(root, Vector3(tx, 0.8, -43.4), 1.57)
 		P.jug(root, Vector3(tx, 0.8, -46.0), Color(0.6, 0.42, 0.3), 0.5)
 	for z in [-41.0, -47.0]:
-		D.shield(root, Vector3(2.65, 3.2, z), Vector3(1, 0, 0), Color(0.2, 0.28, 0.5))
-		D.shield(root, Vector3(22.35, 3.4, z), Vector3(-1, 0, 0), Color(0.45, 0.12, 0.12))
+		H.trophy(root, Vector3(2.65, 3.1, z), Vector3(1, 0, 0), "shield_sun_pale", 1.1)
+		H.trophy(root, Vector3(22.35, 3.3, z), Vector3(-1, 0, 0), "shield_sun_bend", 1.1)
 
 	# Casimir's room: rug, chest, shelf of books.
-	D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))
+	if not D.carpet(root, "side", Vector3(-4.4, 0, -7.0), 2.3, 1.4, PI * 0.5):
+		D.rug(root, Vector3(-4.4, 0, -7.0), Vector2(2.4, 1.7), Color(0.5, 0.12, 0.1), Color(0.75, 0.6, 0.3))
 	F.chest(root, Vector3(-5.07, 0, -4.75), -PI * 0.5, Vector3(0.95, 0.48, 0.5))
 	D.shelf(root, Vector3(-2.6, 0.75, -9.85), Vector3(0, 0, 1), 1.2, 2, 7)
 
 	# Kitchen: barrels, sacks, a crate and a shelf of jars.
-	D.barrel(root, Vector3(8.85, 0, -3.7))
+	D.barrel(root, Vector3(8.85, 0, -3.7), 0.9, true)
 	D.barrel(root, Vector3(8.2, 0, -3.65), 0.75)
 	D.sack(root, Vector3(8.9, 0, -13.35))
 	D.sack(root, Vector3(8.35, 0, -13.45), Color(0.68, 0.6, 0.45))
@@ -503,48 +583,6 @@ func _characters() -> void:
 		cook.patrol_points = [Vector3(3.2, 0, -5.5), Vector3(7.8, 0, -5.5), Vector3(7.8, 0, -11.8), Vector3(3.2, 0, -11.8)]
 		npcs["cook"] = cook
 	npcs["king"] = king
-
-
-## An original crest: a sun above a white peak on a deep blue shield.
-func _crest(center: Vector3, scale: float, yaw: float) -> void:
-	var c := Node3D.new()
-	c.position = center
-	c.rotation.y = yaw
-	c.scale = Vector3.ONE * scale
-	root.add_child(c)
-	G.box(c, Vector3(0.9, 1.0, 0.05), Vector3(0, 0.05, 0), G.mat(Color(0.1, 0.16, 0.36)), false)
-	var point := MeshInstance3D.new()
-	var prism := PrismMesh.new()
-	prism.size = Vector3(0.9, 0.35, 0.05)
-	point.mesh = prism
-	point.material_override = G.mat(Color(0.1, 0.16, 0.36))
-	point.position = Vector3(0, -0.62, 0)
-	point.rotation.z = PI
-	c.add_child(point)
-	var sun := G.cylinder(c, 0.17, 0.03, Vector3(0, 0.25, 0.04), gold)
-	sun.rotation.x = PI * 0.5
-	var peak := MeshInstance3D.new()
-	var peak_mesh := PrismMesh.new()
-	peak_mesh.size = Vector3(0.6, 0.45, 0.03)
-	peak.mesh = peak_mesh
-	peak.material_override = G.mat(Color(0.92, 0.94, 0.97))
-	peak.position = Vector3(0, -0.2, 0.04)
-	c.add_child(peak)
-
-
-func _banner(pos: Vector3, normal: Vector3) -> void:
-	var b := Node3D.new()
-	b.position = pos
-	b.rotation.y = atan2(-normal.x, -normal.z) + PI
-	root.add_child(b)
-	G.box(b, Vector3(1.5, 0.1, 0.1), Vector3(0, 1.85, 0.05), wood_dark, false)
-	G.box(b, Vector3(1.3, 3.6, 0.04), Vector3(0, 0, 0.05), red_cloth, false)
-	var emblem := Node3D.new()
-	emblem.position = Vector3(0, 0.6, 0.08)
-	emblem.scale = Vector3.ONE * 0.7
-	b.add_child(emblem)
-	var disc := G.cylinder(emblem, 0.25, 0.03, Vector3.ZERO, gold)
-	disc.rotation.x = PI * 0.5
 
 
 func _mountain_texture() -> ImageTexture:

@@ -20,10 +20,14 @@ const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const P := preload("res://scripts/world/props.gd")
 const M := preload("res://scripts/characters/mesh_lib.gd")
+const MP := preload("res://scripts/world/material_polish.gd")
+const H := preload("res://scripts/world/heraldry.gd")
 const LOOKS_PATH := "res://data/characters.json"
 
 const HIP_HEIGHT := 0.93
 const STRIDE := 1.35  # metres per full walk cycle (two steps)
+const SEAT_HEIGHT := 0.6  # top of the throne's cushion (royal_throne.glb at 80%)
+const SIT_FORWARD := -0.14  # seated, the hips sit this far forward of the seat's centre
 
 ## Average albedo of each generated texture, so a look's colour comes out as
 ## that colour once the texture is multiplied in.
@@ -66,6 +70,7 @@ var back_panel: Node3D
 var cape: Node3D
 var robe: Node3D
 var spear: Node3D
+var shield: Node3D
 
 var _phase := 0.0
 var _walk := 0.0
@@ -77,9 +82,35 @@ var _gesture := 0.0
 var _slouch := 0.0
 var _belly := false
 var _pelvis_y := HIP_HEIGHT + 0.02
-var _sit_y := 0.55
+var _sit_y := 0.61
 ## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
 var _face_mi: MeshInstance3D
+# Face animation clips from an imported model (<model>.face.json): blend-shape
+# weights over time, e.g. Talk_Calm / Talk_Normal / Talk_Emphatic / Idle_Blink.
+var _face_clips: Dictionary = {}
+var _face_shapes: Array = []
+var _face_weights: Array = []
+var _talk_clip := "Talk_Normal"
+var _talk_time := 0.0
+var _idle_time := 0.0
+# Turning on the spot: yaw rate of the character, smoothed, and a step cycle.
+var _prev_yaw := 0.0
+var _yaw_ready := false
+var _turn_rate := 0.0
+var _turn_phase := 0.0
+var _turn := 0.0
+# Talking: the gesture arm moves between a few poses (shoulder x, shoulder z,
+# elbow), changing every second or two, with small beats on top.
+var _gest_pose := Vector3(0.4, 0.18, 0.95)
+var _gest_target := Vector3(0.4, 0.18, 0.95)
+var _gest_timer := 0.0
+const GESTURES := [
+	Vector3(0.5, 0.22, 1.05),  # open hand, forearm forward
+	Vector3(0.28, 0.12, 0.7),  # low, explaining
+	Vector3(0.62, 0.3, 1.25),  # raised, making a point
+	Vector3(0.36, 0.05, 1.0),  # hand towards the chest
+	Vector3(0.15, 0.08, 0.35),  # arm dropping between phrases
+]
 var _blink := 0.0
 var _next_blink := 2.0
 
@@ -110,12 +141,15 @@ func build(look_id: String) -> void:
 	var model_path := str(look.get("model", ""))
 	var rig := _default_rig()
 	var model_rig := _load_rig(model_path)
+	_face_clips = _load_face_clips(model_path)
+	_talk_clip = str(look.get("speech_style", "Talk_Normal"))
 	for k in model_rig:
 		rig[k] = model_rig[k]
 	var p: Vector3 = rig["pelvis"]
 	_pelvis_y = p.y
-	# Seated, the pelvis sits just above knee height so the feet reach the floor.
-	_sit_y = maxf(float(rig["l_knee"].y) + 0.04, 0.52)
+	# Seated, the hips rest a hand's breadth above the seat (the throne's
+	# cushion is ~0.52 m high), never lower than the knees.
+	_sit_y = maxf(float(rig["l_knee"].y) + 0.04, SEAT_HEIGHT + 0.09)
 	pelvis = _joint(self, p)
 	chest = _joint(pelvis, rig["chest"] - p)
 	neck = _joint(chest, rig["neck"] - rig["chest"])
@@ -134,6 +168,11 @@ func build(look_id: String) -> void:
 		_build_from_model(model_path)
 		if str(look.get("weapon", "")) == "spear":
 			_build_spear()
+		if look.has("sword"):
+			# Hang the sword from the model's own belt.
+			var belt := _model_belt()
+			_build_sword(belt.x, belt.y)
+		_build_shield()
 		return
 	_build_body()
 	_build_head()
@@ -141,8 +180,15 @@ func build(look_id: String) -> void:
 
 
 ## Starts the talking animation for `duration` seconds.
-func speak(duration: float) -> void:
+## `text` picks the face animation: lines with "!" use the emphatic clip.
+func speak(duration: float, text := "") -> void:
 	_talk = maxf(_talk, duration)
+	var style := str(look.get("speech_style", "Talk_Normal"))
+	if text.contains("!") and _face_clips.has("Talk_Emphatic"):
+		style = "Talk_Emphatic"
+	if style != _talk_clip:
+		_talk_clip = style
+		_talk_time = 0.0
 
 
 # --- Imported models ------------------------------------------------------------------
@@ -214,6 +260,8 @@ func _build_from_model(path: String) -> void:
 	if _face_mi != null:
 		mouth = null
 	inst.free()
+	# Give the imported materials surface detail, sheen and skin scattering.
+	MP.polish(self)
 
 
 # --- Body ---------------------------------------------------------------------------
@@ -304,6 +352,10 @@ func _build_hand(elbow: Node3D, side: float, material: Material) -> void:
 
 
 func _build_boot(knee: Node3D, material: Material) -> void:
+	if look.has("tall_boots"):
+		# Tall boots reach up to the knee, with a strap tied around the top.
+		_mesh(knee, M.loft([[0.035, 0.063, 0.069], [-0.06, 0.064, 0.072, 0.0, 0.01], [-0.16, 0.061, 0.068, 0.0, 0.008]], 14, [], [1.0, 0.85]), material)
+		_mesh(knee, M.loft([[0.0, 0.066, 0.072], [-0.022, 0.066, 0.072]], 14), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
 	# Shaft from mid-calf to the ankle; scuffed and muddy toward the bottom.
 	_mesh(knee, M.loft([[-0.15, 0.06, 0.066, 0.0, 0.008], [-0.26, 0.052, 0.056, 0.0, 0.004], [-0.38, 0.046, 0.05],
 		[-0.44, 0.05, 0.056]], 14, [], [0.95, 0.6]), material)
@@ -415,6 +467,7 @@ func _build_mail_hood(face: Node3D, headwear: String) -> void:
 func _build_costume() -> void:
 	var belt := _mat("leather", _c("belt", "#3a2a1e"))
 	var belt_y := 0.12
+	var belt_z := 0.0
 	var waist := 0.168 if not _belly else 0.19
 	if look.has("gambeson"):
 		# The quilted skirts of the gambeson, split front and back for walking.
@@ -476,21 +529,36 @@ func _build_costume() -> void:
 	if look.has("cape"):
 		cape = _joint(chest, Vector3(0, 0.22, 0.02))
 		_mesh(cape, M.loft([[0.04, 0.18, 0.12], [-0.3, 0.24, 0.17], [-0.8, 0.29, 0.23], [-1.32, 0.33, 0.27]], 30, [0.25, PI - 0.25], [0.95, 0.35], 0.04, false, 0.2, 0.08), _mat("wool", _c("cape", "#4a1616")), true)
+	if look.has("vest"):
+		# A sleeveless wool jerkin over the shirt, down over the hips.
+		var vest := _mat("wool", _c("vest", "#4a3828"))
+		var vs := [[0.245, 0.172, 0.1], [0.18, 0.205, 0.119], [0.1, 0.198, 0.124], [0.0, 0.181, 0.118], [-0.1, 0.172, 0.118], [-0.21, 0.178, 0.124]]
+		if _belly:
+			vs = [[0.245, 0.172, 0.1], [0.18, 0.207, 0.12], [0.1, 0.202, 0.137, 0.0, -0.015], [0.0, 0.202, 0.162, 0.0, -0.04], [-0.1, 0.197, 0.167, 0.0, -0.045], [-0.21, 0.18, 0.14, 0.0, -0.02]]
+		_mesh(chest, M.loft(vs, 20, [], [1.0, 0.8], 0.006, false, 0.35, 0.02), vest, true)
 	if look.has("apron"):
 		var apron := _mat("cloth", _c("apron", "#cfc6b0"))
+		var apron_tex := str(look.get("apron_texture", ""))
+		if apron_tex != "":
+			apron = _painted_mat(apron_tex, true)
 		var bib := [[0.17, 0.165, 0.1], [0.05, 0.2, 0.165, 0.0, -0.045], [-0.08, 0.2, 0.17, 0.0, -0.05], [-0.16, 0.18, 0.135, 0.0, -0.025]]
 		if not _belly:
 			bib = [[0.17, 0.17, 0.1], [0.0, 0.17, 0.11], [-0.16, 0.16, 0.108]]
-		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.6), apron, true)
+		var uvs := apron_tex != ""
+		_mesh(chest, M.loft(bib, 10, [PI + 0.75, TAU - 0.75], [1.0, 0.85], 0.0, false, 0.3 if uvs else 0.6, 0.0, uvs), apron, true)
 		front_panel = _joint(pelvis, Vector3(0, 0.12, 0))
 		var skirt := [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.62, 0.22, 0.155]]
-		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.7, 0.05), apron, true)
+		if look.has("apron_long"):
+			skirt = [[0.0, 0.19, 0.135, 0.0, -0.01], [-0.3, 0.21, 0.15], [-0.55, 0.22, 0.155], [-0.74, 0.225, 0.158]]
+		_mesh(front_panel, M.loft(skirt, 20, [PI + 0.6, TAU - 0.6], [0.9, 0.55], 0.03, false, 0.35 if uvs else 0.7, 0.05, uvs), apron, true)
+		# The belt is buckled over the apron.
+		belt_z = -0.02
 	# Belt, buckle and the long strap end hanging down the front.
 	var bw := float(look.get("belt_width", 0.045))
 	var bz := waist * 0.7 + 0.011
-	_mesh(pelvis, M.loft([[belt_y + bw * 0.5, waist + 0.008, bz - 0.001], [belt_y - bw * 0.5, waist + 0.01, bz + 0.001]], 24, [], [1.0, 0.85]), belt)
+	_mesh(pelvis, M.loft([[belt_y + bw * 0.5, waist + 0.008, bz - 0.001, 0.0, belt_z], [belt_y - bw * 0.5, waist + 0.01, bz + 0.001, 0.0, belt_z]], 24, [], [1.0, 0.85]), belt)
 	var buckle_mat := _mat("rust_metal", Color(0.72, 0.66, 0.56), 1.0, 0.7, 0.0, false)
-	var buckle := _joint(pelvis, Vector3(0.02, belt_y, -bz - 0.006))
+	var buckle := _joint(pelvis, Vector3(0.02, belt_y, -bz - 0.006 + belt_z))
 	var bh := bw + 0.016
 	for sx in [-1.0, 1.0]:
 		var side_bar := _mesh(buckle, M.bevel_box(Vector3(0.008, bh, 0.008), 0.002), buckle_mat)
@@ -502,7 +570,7 @@ func _build_costume() -> void:
 	if bw > 0.05:
 		# The strap end passes through the buckle and hangs, swinging with the cloth.
 		var tongue_parent: Node3D = front_panel if front_panel != null else pelvis
-		var tongue := _joint(tongue_parent, Vector3(0.045, belt_y + (0.02 if front_panel != null else 0.0) - bw * 0.3, -waist * 0.72 - 0.035))
+		var tongue := _joint(tongue_parent, Vector3(0.045, belt_y + (0.02 if front_panel != null else 0.0) - bw * 0.3, -waist * 0.72 - 0.035 + belt_z))
 		tongue.rotation = Vector3(-0.08, 0.0, 0.08)
 		var strap := _mesh(tongue, M.bevel_box(Vector3(bw * 0.8, 0.34, 0.006), 0.002), belt)
 		strap.position = Vector3(0, -0.17, 0)
@@ -510,10 +578,44 @@ func _build_costume() -> void:
 		tip.position = Vector3(0, -0.33, 0)
 	if look.has("pouch"):
 		P.ellipsoid(pelvis, Vector3(0.14, belt_y - 0.06, -0.08), Vector3(0.04, 0.05, 0.025), _mat("leather", _c("belt", "#3a2a1e"), 1.0, 0.0, 0.0, false))
+	if look.has("knife"):
+		_build_knife(belt_y, waist * 0.7 + 0.03 - belt_z)
+	if look.has("towel"):
+		_build_towel(belt_y, waist * 0.7 + 0.03 - belt_z)
 	if str(look.get("weapon", "")) == "spear":
 		_build_spear()
 	if look.has("sword"):
 		_build_sword(belt_y, waist)
+	_build_shield()
+
+
+## A butcher's knife in a leather sheath thrust through the belt on the right.
+func _build_knife(belt_y: float, front: float) -> void:
+	var k := _joint(pelvis, Vector3(0.1, belt_y + 0.01, -front))
+	k.rotation = Vector3(0.12, 0.0, 0.22)
+	var leather := _mat("leather", Color(0.28, 0.17, 0.11), 0.6)
+	_mesh(k, M.loft([[0.0, 0.021, 0.007], [-0.12, 0.019, 0.006], [-0.2, 0.009, 0.004], [-0.215, 0.002, 0.002]], 8), leather)
+	var wood := _mat("wood_dark", Color(0.3, 0.2, 0.13), 0.8, 0.0, 0.0, false)
+	_mesh(k, M.loft([[0.005, 0.012, 0.01], [0.05, 0.013, 0.011], [0.095, 0.012, 0.01]], 8), wood)
+	P.ellipsoid(k, Vector3(0, 0.1, 0), Vector3(0.014, 0.008, 0.012), _mat("rust_metal", Color(0.6, 0.55, 0.5), 0.5, 0.7))
+
+
+## A striped kitchen towel tucked over the belt on the left, hanging down.
+func _build_towel(belt_y: float, front: float) -> void:
+	var parent: Node3D = front_panel if front_panel != null else pelvis
+	var y0 := belt_y - (0.12 if front_panel != null else 0.0)
+	var t := _joint(parent, Vector3(-0.1, y0 + 0.02, -front - 0.004))
+	t.rotation = Vector3(-0.06, 0.0, -0.1)
+	var linen := _mat("cloth", Color(0.72, 0.67, 0.58))
+	var cloth := _mesh(t, M.bevel_box(Vector3(0.12, 0.3, 0.01), 0.004), linen)
+	cloth.position = Vector3(0, -0.15, 0)
+	cloth.rotation.y = 0.12
+	var fold := _mesh(t, M.bevel_box(Vector3(0.125, 0.05, 0.026), 0.008), linen)
+	fold.position = Vector3(0, 0.0, 0.004)
+	var red := _mat("cloth", Color(0.45, 0.12, 0.09), 1.0, 0.0, 0.0, false)
+	for y in [-0.23, -0.255]:
+		var stripe := _mesh(t, M.bevel_box(Vector3(0.122, 0.009, 0.004), 0.001), red)
+		stripe.position = Vector3(0, y, -0.006)
 
 
 ## An arming sword in a leather scabbard hanging from the belt on the left hip.
@@ -531,6 +633,28 @@ func _build_sword(belt_y: float, waist: float) -> void:
 	guard.position = Vector3(0, 0.02, 0)
 	_mesh(hang, M.loft([[0.13, 0.012, 0.014], [0.09, 0.014, 0.016], [0.03, 0.012, 0.014]], 8), leather)
 	P.ellipsoid(hang, Vector3(0, 0.15, 0), Vector3(0.012, 0.027, 0.027), steel)
+
+
+## A heater shield painted with the kingdom's arms ("shield": a design from
+## heraldry.gd), carried on the left forearm, face turned out and forward.
+func _build_shield() -> void:
+	var design := str(look.get("shield", ""))
+	if design == "":
+		return
+	shield = _joint(l_elbow, Vector3(-0.075, -0.13, -0.03))
+	# Carried shields are darker and duller than the display ones in the hall.
+	H.shield(shield, Vector3.ZERO, Vector3(-0.72, 0.0, -0.69).normalized(), design, 0.66, Color(0.5, 0.46, 0.43))
+
+
+## Height and half-width of an imported model's belt, from its belt part
+## (pelvis-local), falling back to typical values.
+func _model_belt() -> Vector2:
+	for child in pelvis.get_children():
+		if child is MeshInstance3D and String(child.name).to_lower().contains("belt"):
+			var mi := child as MeshInstance3D
+			var box := mi.transform * mi.get_aabb()
+			return Vector2(box.get_center().y, maxf(box.size.x * 0.5, 0.12))
+	return Vector2(0.06, 0.17)
 
 
 func _build_spear() -> void:
@@ -553,6 +677,13 @@ func _process(delta: float) -> void:
 	_walk = lerpf(_walk, clampf(speed / 1.1, 0.0, 1.0), clampf(delta * 5.0, 0.0, 1.0))
 	_talk = maxf(_talk - delta, 0.0)
 	_gesture = lerpf(_gesture, 1.0 if _talk > 0.0 else 0.0, clampf(delta * 3.0, 0.0, 1.0))
+	_track_turning(delta)
+	if _talk > 0.0:
+		_gest_timer -= delta
+		if _gest_timer <= 0.0:
+			_gest_target = GESTURES[randi() % GESTURES.size()]
+			_gest_timer = randf_range(0.8, 1.9)
+	_gest_pose = _gest_pose.lerp(_gest_target, clampf(delta * 3.5, 0.0, 1.0))
 	if pose == "sit":
 		_animate_sit()
 	else:
@@ -587,28 +718,88 @@ func _animate_stand(delta: float) -> void:
 	l_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, -s) * 0.2 * _walk
 	r_elbow.rotation.x = 0.18 + 0.2 * _walk + maxf(0.0, s) * 0.2 * _walk
 
+	_animate_turn(delta)
+	_animate_talk_body(1.0)
 	if spear != null:
 		# The spear hand stays steady and keeps the shaft upright.
 		r_shoulder.rotation = Vector3(0.15, 0, 0.1)
 		r_elbow.rotation.x = 0.75
+	if shield != null and _gesture < 0.01:
+		# The shield arm carries the shield a little forward, close to the body.
+		l_shoulder.rotation.x += 0.1
+		l_elbow.rotation.x += 0.35
 	_apply_gesture()
+
+
+## How fast the character is turning (radians per second, + is to its left).
+func _track_turning(delta: float) -> void:
+	var yaw := global_rotation.y if is_inside_tree() else rotation.y
+	if not _yaw_ready:
+		_prev_yaw = yaw
+		_yaw_ready = true
+	var rate := wrapf(yaw - _prev_yaw, -PI, PI) / maxf(delta, 0.0001)
+	_prev_yaw = yaw
+	_turn_rate = lerpf(_turn_rate, rate, clampf(delta * 10.0, 0.0, 1.0))
+
+
+## Turning on the spot: the head leads, the shoulders follow and the hips
+## come last, while the feet take small shuffling steps round, one step for
+## every ~25 degrees turned, the body dipping on each.
+func _animate_turn(delta: float) -> void:
+	var target := clampf(absf(_turn_rate) / 2.0, 0.0, 1.0) * (1.0 - _walk)
+	_turn = lerpf(_turn, target, clampf(delta * 8.0, 0.0, 1.0))
+	if _turn < 0.01:
+		return
+	_turn_phase += absf(_turn_rate) * delta / 0.45 * PI
+	var st := sin(_turn_phase)
+	var lead := clampf(_turn_rate * 0.14, -0.45, 0.45) * _turn
+	pelvis.rotation.y -= lead * 0.5
+	chest.rotation.y += lead * 0.5
+	pelvis.position.y -= absf(cos(_turn_phase)) * 0.015 * _turn
+	l_hip.rotation.x += maxf(0.0, st) * 0.22 * _turn
+	r_hip.rotation.x += maxf(0.0, -st) * 0.22 * _turn
+	l_knee.rotation.x -= maxf(0.0, st) * 0.45 * _turn
+	r_knee.rotation.x -= maxf(0.0, -st) * 0.45 * _turn
+	l_hip.rotation.z -= maxf(0.0, st) * 0.06 * _turn
+	r_hip.rotation.z += maxf(0.0, -st) * 0.06 * _turn
+	l_shoulder.rotation.x += st * 0.06 * _turn
+	r_shoulder.rotation.x -= st * 0.06 * _turn
+
+
+## While talking the whole body takes part: a slight lean in, a slow twist
+## towards the gesturing arm, shoulders rising with emphasis.
+func _animate_talk_body(amount: float) -> void:
+	if _gesture < 0.01:
+		return
+	var g := _gesture * amount
+	var right := str(look.get("gesture_arm", "right")) == "right"
+	chest.rotation.x += g * (0.035 + 0.025 * sin(_time * 1.9))
+	chest.rotation.y += g * ((0.07 if right else -0.07) * (0.5 + 0.5 * sin(_time * 0.8)))
+	chest.rotation.z += g * 0.02 * sin(_time * 1.3)
+	var shrug := pow(maxf(0.0, sin(_time * 1.1 + 0.7)), 6.0) * 0.12 * g
+	l_shoulder.rotation.z -= shrug
+	r_shoulder.rotation.z += shrug
 
 
 func _animate_sit() -> void:
 	var breath := sin(_time * 1.2)
-	pelvis.position = Vector3(0, _sit_y, 0.0)
+	# Sitting forward on the seat, so the knees clear its front edge and the
+	# shins come down in front of it, feet a little forward; leaning back.
+	pelvis.position = Vector3(0, _sit_y, SIT_FORWARD)
 	pelvis.rotation = Vector3.ZERO
-	chest.rotation = Vector3(0.05 + breath * 0.01, 0, 0.02)
+	chest.rotation = Vector3(-0.06 + breath * 0.01, 0, 0.02)
 	for hip in [l_hip, r_hip]:
 		hip.rotation = Vector3(PI * 0.5, 0, 0)
 	l_hip.rotation.z = -0.1
 	r_hip.rotation.z = 0.1
-	l_knee.rotation.x = -PI * 0.5
-	r_knee.rotation.x = -PI * 0.5
-	l_shoulder.rotation = Vector3(0.45, 0, -0.18)
-	r_shoulder.rotation = Vector3(0.45, 0, 0.18)
-	l_elbow.rotation.x = 0.9
-	r_elbow.rotation.x = 0.9
+	l_knee.rotation.x = -PI * 0.5 + 0.25
+	r_knee.rotation.x = -PI * 0.5 + 0.25
+	# Forearms laid along the throne's arms, hands resting at the front ends.
+	l_shoulder.rotation = Vector3(0.28, 0, -0.22)
+	r_shoulder.rotation = Vector3(0.28, 0, 0.22)
+	l_elbow.rotation.x = 0.62
+	r_elbow.rotation.x = 0.62
+	_animate_talk_body(0.6)
 	_apply_gesture()
 
 
@@ -618,10 +809,18 @@ func _apply_gesture() -> void:
 	var right := str(look.get("gesture_arm", "right")) == "right"
 	var shoulder := r_shoulder if right else l_shoulder
 	var elbow := r_elbow if right else l_elbow
-	var wave := sin(_time * 1.7)
-	shoulder.rotation.x = lerpf(shoulder.rotation.x, 0.4 + wave * 0.1, _gesture)
-	shoulder.rotation.z = lerpf(shoulder.rotation.z, (0.18 if right else -0.18), _gesture)
-	elbow.rotation.x = lerpf(elbow.rotation.x, 0.95 + sin(_time * 2.3) * 0.12, _gesture)
+	# Beats: small quick movements of the hand on stressed words.
+	var beat := sin(_time * 2.3) * 0.06 + sin(_time * 5.1) * 0.03
+	var side := 1.0 if right else -1.0
+	shoulder.rotation.x = lerpf(shoulder.rotation.x, _gest_pose.x + beat, _gesture)
+	shoulder.rotation.z = lerpf(shoulder.rotation.z, _gest_pose.y * side, _gesture)
+	elbow.rotation.x = lerpf(elbow.rotation.x, _gest_pose.z + beat * 1.5, _gesture)
+	# The other arm moves a little too, unless it holds a spear.
+	var other_shoulder := l_shoulder if right else r_shoulder
+	var other_elbow := l_elbow if right else r_elbow
+	if not (spear != null and not right):
+		other_shoulder.rotation.x += 0.05 * _gesture * sin(_time * 0.9)
+		other_elbow.rotation.x += 0.12 * _gesture * (0.5 + 0.5 * sin(_time * 1.3 + 1.0))
 
 
 func _animate_head(delta: float) -> void:
@@ -639,9 +838,13 @@ func _animate_head(delta: float) -> void:
 	var k := clampf(delta * 2.5, 0.0, 1.0)
 	_head_yaw = lerpf(_head_yaw, yaw, k)
 	_head_pitch = lerpf(_head_pitch, pitch, k)
-	var nod := sin(_time * 3.6) * 0.04 * _gesture
-	neck.rotation = Vector3(-_slouch * 0.5, _head_yaw * 0.4, 0)
-	head.rotation = Vector3(_head_pitch + nod, _head_yaw * 0.6, 0)
+	# Nods land on the beats of speech; the head tilts now and then.
+	var nod := (pow(absf(sin(_time * 2.2)), 4.0) * 0.07 - 0.02) * _gesture
+	var tilt := sin(_time * 0.7) * 0.06 * _gesture
+	# Turning, the head leads the body round.
+	var lead := clampf(_turn_rate * 0.2, -0.5, 0.5) * _turn
+	neck.rotation = Vector3(-_slouch * 0.5, _head_yaw * 0.4 + lead * 0.4, 0)
+	head.rotation = Vector3(_head_pitch + nod, _head_yaw * 0.6 + lead * 0.6, tilt)
 	if mouth != null:
 		var open := 0.0
 		if _talk > 0.0:
@@ -653,6 +856,9 @@ func _animate_head(delta: float) -> void:
 
 ## Speech and blinking on an imported face's blend shapes.
 func _animate_face(delta: float) -> void:
+	if not _face_clips.is_empty():
+		_play_face_clips(delta)
+		return
 	var jaw := 0.0
 	var wide := 0.0
 	if _talk > 0.0:
@@ -668,6 +874,71 @@ func _animate_face(delta: float) -> void:
 	_set_shape("eyeBlink", 1.0 - absf(_blink - 0.08) / 0.08 if _blink > 0.0 else 0.0)
 
 
+## Plays the model's own face clips: the talking clip loops while a line is on
+## screen and the idle blinking clip otherwise, cross-fading between them.
+func _play_face_clips(delta: float) -> void:
+	var target: Array
+	if _talk > 0.0 and _face_clips.has(_talk_clip):
+		_talk_time += delta
+		target = _sample_clip(_face_clips[_talk_clip], _talk_time)
+	else:
+		_talk_time = 0.0
+		_idle_time += delta
+		target = _sample_clip(_face_clips["Idle_Blink"], _idle_time) if _face_clips.has("Idle_Blink") else []
+	if _face_weights.size() != _face_shapes.size():
+		_face_weights.resize(_face_shapes.size())
+		_face_weights.fill(0.0)
+	var k := clampf(delta / 0.12, 0.0, 1.0)
+	for i in _face_shapes.size():
+		var want: float = target[i] if i < target.size() else 0.0
+		# Blinks pass straight through; the mouth eases between clips.
+		if str(_face_shapes[i]) == "eyeBlink":
+			_face_weights[i] = maxf(want, lerpf(float(_face_weights[i]), want, k))
+		else:
+			_face_weights[i] = lerpf(float(_face_weights[i]), want, k)
+		_set_shape(str(_face_shapes[i]), float(_face_weights[i]))
+
+
+## Weights of a clip at time t (looping), interpolated between keys.
+func _sample_clip(clip: Dictionary, t: float) -> Array:
+	var times: Array = clip["times"]
+	var weights: Array = clip["weights"]
+	if times.is_empty():
+		return []
+	var length: float = times[times.size() - 1]
+	if length > 0.0:
+		t = fmod(t, length)
+	var i := times.bsearch(t)
+	if i <= 0:
+		return weights[0]
+	if i >= times.size():
+		return weights[weights.size() - 1]
+	var t0: float = times[i - 1]
+	var t1: float = times[i]
+	var f := (t - t0) / maxf(t1 - t0, 0.0001)
+	var a: Array = weights[i - 1]
+	var b: Array = weights[i]
+	var out: Array = []
+	for j in a.size():
+		out.append(lerpf(float(a[j]), float(b[j]), f))
+	return out
+
+
+## Face clips saved next to an imported model as <model>.face.json by
+## tools/rig_model_v2.py.
+func _load_face_clips(model_path: String) -> Dictionary:
+	if model_path == "":
+		return {}
+	var f := FileAccess.open(model_path.get_basename() + ".face.json", FileAccess.READ)
+	if f == null:
+		return {}
+	var data = JSON.parse_string(f.get_as_text())
+	if typeof(data) != TYPE_DICTIONARY or not data.has("clips"):
+		return {}
+	_face_shapes = data.get("shapes", [])
+	return data["clips"]
+
+
 func _set_shape(shape_name: String, value: float) -> void:
 	var i := _face_mi.find_blend_shape_by_name(shape_name)
 	if i >= 0:
@@ -679,14 +950,18 @@ func _animate_layers() -> void:
 	var forward := maxf(maxf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	var back := minf(minf(l_hip.rotation.x, r_hip.rotation.x), 0.0)
 	if pose == "sit":
+		# Skirts lie over the thighs in front and are sat on behind, folded
+		# forward under the thighs instead of hanging down through the seat.
 		forward = PI * 0.42
-		back = 0.0
+		back = PI * 0.5 / 0.85
 	if front_panel != null:
 		front_panel.rotation.x = forward * 0.85
 	if back_panel != null:
 		back_panel.rotation.x = back * 0.85
 	if cape != null:
 		cape.rotation.x = -0.03 - _walk * 0.12 + sin(_time * 1.1) * 0.015
+		# Seated, the cape bunches on the seat behind instead of hanging through it.
+		cape.scale = Vector3(1.0, 0.38, 1.0) if pose == "sit" else Vector3.ONE
 	if robe != null:
 		robe.visible = pose != "sit"
 		robe.rotation.x = sin(_phase) * 0.035 * _walk

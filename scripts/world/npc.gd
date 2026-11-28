@@ -25,6 +25,7 @@ var _patrol_index := 0
 var _wait := 0.0
 var _scripted := false
 var _last_position := Vector3.ZERO
+var _turn_tween: Tween
 
 
 func _ready() -> void:
@@ -50,7 +51,7 @@ func interact(player) -> void:
 			_bark_index += 1
 
 
-func turn_to(target: Vector3, duration := 0.4) -> void:
+func turn_to(target: Vector3, duration := -1.0) -> void:
 	if seated:
 		return
 	var d := target - global_position
@@ -59,10 +60,19 @@ func turn_to(target: Vector3, duration := 0.4) -> void:
 	turn_to_yaw(atan2(-d.x, -d.z), duration)
 
 
-func turn_to_yaw(yaw: float, duration := 0.4) -> void:
+## Turns in place, easing in and out; by default the time grows with the
+## angle (a quarter turn takes about 0.75 s), so a body never snaps round.
+## The rig sees the turning and steps round with the head leading.
+func turn_to_yaw(yaw: float, duration := -1.0) -> void:
 	var from := rotation.y
-	var tw := create_tween()
-	tw.tween_method(func(t: float) -> void: rotation.y = lerp_angle(from, yaw, t), 0.0, 1.0, duration)
+	var angle := absf(angle_difference(from, yaw))
+	if duration < 0.0:
+		duration = clampf(0.25 + angle * 0.32, 0.3, 1.3)
+	if _turn_tween != null and _turn_tween.is_valid():
+		_turn_tween.kill()
+	_turn_tween = create_tween()
+	_turn_tween.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_turn_tween.tween_method(func(t: float) -> void: rotation.y = lerp_angle(from, yaw, t), 0.0, 1.0, duration)
 
 
 ## Scripted walk used by dialogue cues (e.g. the king walking to his crest).
@@ -71,19 +81,21 @@ func walk_to(target: Vector3, final_yaw: float, speed := 1.2) -> void:
 	var d := target - global_position
 	d.y = 0.0
 	if d.length() > 0.05:
-		turn_to_yaw(atan2(-d.x, -d.z), 0.3)
+		var yaw := atan2(-d.x, -d.z)
+		var turn_time := clampf(0.25 + absf(angle_difference(rotation.y, yaw)) * 0.32, 0.3, 1.3)
+		turn_to_yaw(yaw, turn_time)
 		var tw := create_tween()
-		tw.tween_interval(0.3)
+		tw.tween_interval(turn_time * 0.8)
 		tw.tween_property(self, "global_position", target, d.length() / speed)
 		await tw.finished
-	turn_to_yaw(final_yaw, 0.5)
+	turn_to_yaw(final_yaw)
 	_scripted = false
 
 
 func _on_line_shown(line: Dictionary) -> void:
 	var who := speaker_name if speaker_name != "" else display_name
 	if body != null and str(line.get("speaker", "")) == who:
-		body.speak(str(line.get("text", "")).length() / 55.0 + 0.4)
+		body.speak(str(line.get("text", "")).length() / 55.0 + 0.4, str(line.get("text", "")))
 
 
 func _physics_process(delta: float) -> void:
@@ -107,8 +119,15 @@ func _physics_process(delta: float) -> void:
 	if to.length() < 0.15:
 		_patrol_index = (_patrol_index + 1) % patrol_points.size()
 		_wait = 1.5
+		# Turn round to face the next leg while pausing, rather than walking off sideways.
+		var next: Vector3 = patrol_points[_patrol_index] - global_position
+		if Vector2(next.x, next.z).length() > 0.1:
+			turn_to_yaw(atan2(-next.x, -next.z))
 		return
 	var dir := to.normalized()
-	velocity = dir * patrol_speed
-	rotation.y = lerp_angle(rotation.y, atan2(-dir.x, -dir.z), clampf(delta * 6.0, 0.0, 1.0))
+	var want := atan2(-dir.x, -dir.z)
+	rotation.y = lerp_angle(rotation.y, want, clampf(delta * 3.5, 0.0, 1.0))
+	# Slow down while still turning into the new direction.
+	var facing := clampf(cos(angle_difference(rotation.y, want)), 0.0, 1.0)
+	velocity = dir * patrol_speed * facing * facing
 	move_and_slide()
