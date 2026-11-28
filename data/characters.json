@@ -25,8 +25,9 @@
     "mittens": true,
     "belt_width": 0.07,
     "coif_lining": "#7a2a22",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
-    "shield": "shield_sun_bend"
+    "model": "res://assets/models/guard_talking_rigged.glb",
+    "shield": "shield_sun_bend",
+    "speech_style": "Talk_Normal"
   },
   "guard_patrol": {
     "skin": "#946a55",
@@ -53,8 +54,9 @@
     "face": "scarred",
     "belt_width": 0.065,
     "coif_lining": "#5e3a2a",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
-    "shield": "shield_sun_pale"
+    "model": "res://assets/models/guard_talking_rigged.glb",
+    "shield": "shield_sun_pale",
+    "speech_style": "Talk_Normal"
   },
   "gate_guard": {
     "skin": "#b38469",
@@ -82,8 +84,9 @@
     "helmet": "#aaa296",
     "belt_width": 0.07,
     "coif_lining": "#6e2620",
-    "model": "res://assets/models/medieval_guard_v5_rigged.glb",
-    "shield": "shield_sun_bend"
+    "model": "res://assets/models/guard_talking_rigged.glb",
+    "shield": "shield_sun_bend",
+    "speech_style": "Talk_Normal"
   },
   "king": {
     "skin": "#b89078",
@@ -103,7 +106,8 @@
     "slouch": 0.1,
     "gesture_arm": "right",
     "face": "old",
-    "model": "res://assets/models/medieval_king_rigged.glb"
+    "model": "res://assets/models/king_talking_rigged.glb",
+    "speech_style": "Talk_Calm"
   },
   "cook": {
     "skin": "#b07c62",
@@ -127,6 +131,8 @@
     "cap": "#c4b9a2",
     "headwear": "cap",
     "gesture_arm": "right",
-    "face": "ruddy"
+    "face": "ruddy",
+    "model": "res://assets/models/cook_talking_rigged.glb",
+    "speech_style": "Talk_Normal"
   }
 }

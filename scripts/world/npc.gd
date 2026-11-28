@@ -95,7 +95,7 @@ func walk_to(target: Vector3, final_yaw: float, speed := 1.2) -> void:
 func _on_line_shown(line: Dictionary) -> void:
 	var who := speaker_name if speaker_name != "" else display_name
 	if body != null and str(line.get("speaker", "")) == who:
-		body.speak(str(line.get("text", "")).length() / 55.0 + 0.4)
+		body.speak(str(line.get("text", "")).length() / 55.0 + 0.4, str(line.get("text", "")))
 
 
 func _physics_process(delta: float) -> void:

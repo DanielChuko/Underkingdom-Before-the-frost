@@ -84,6 +84,14 @@ var _pelvis_y := HIP_HEIGHT + 0.02
 var _sit_y := 0.61
 ## An imported model's face with blend shapes (jawOpen, eyeBlink...), if any.
 var _face_mi: MeshInstance3D
+# Face animation clips from an imported model (<model>.face.json): blend-shape
+# weights over time, e.g. Talk_Calm / Talk_Normal / Talk_Emphatic / Idle_Blink.
+var _face_clips: Dictionary = {}
+var _face_shapes: Array = []
+var _face_weights: Array = []
+var _talk_clip := "Talk_Normal"
+var _talk_time := 0.0
+var _idle_time := 0.0
 # Turning on the spot: yaw rate of the character, smoothed, and a step cycle.
 var _prev_yaw := 0.0
 var _yaw_ready := false
@@ -132,6 +140,8 @@ func build(look_id: String) -> void:
 	var model_path := str(look.get("model", ""))
 	var rig := _default_rig()
 	var model_rig := _load_rig(model_path)
+	_face_clips = _load_face_clips(model_path)
+	_talk_clip = str(look.get("speech_style", "Talk_Normal"))
 	for k in model_rig:
 		rig[k] = model_rig[k]
 	var p: Vector3 = rig["pelvis"]
@@ -169,8 +179,15 @@ func build(look_id: String) -> void:
 
 
 ## Starts the talking animation for `duration` seconds.
-func speak(duration: float) -> void:
+## `text` picks the face animation: lines with "!" use the emphatic clip.
+func speak(duration: float, text := "") -> void:
 	_talk = maxf(_talk, duration)
+	var style := str(look.get("speech_style", "Talk_Normal"))
+	if text.contains("!") and _face_clips.has("Talk_Emphatic"):
+		style = "Talk_Emphatic"
+	if style != _talk_clip:
+		_talk_clip = style
+		_talk_time = 0.0
 
 
 # --- Imported models ------------------------------------------------------------------
@@ -834,6 +851,9 @@ func _animate_head(delta: float) -> void:
 
 ## Speech and blinking on an imported face's blend shapes.
 func _animate_face(delta: float) -> void:
+	if not _face_clips.is_empty():
+		_play_face_clips(delta)
+		return
 	var jaw := 0.0
 	var wide := 0.0
 	if _talk > 0.0:
@@ -847,6 +867,71 @@ func _animate_face(delta: float) -> void:
 	_set_shape("jawOpen", jaw)
 	_set_shape("mouthWide", wide)
 	_set_shape("eyeBlink", 1.0 - absf(_blink - 0.08) / 0.08 if _blink > 0.0 else 0.0)
+
+
+## Plays the model's own face clips: the talking clip loops while a line is on
+## screen and the idle blinking clip otherwise, cross-fading between them.
+func _play_face_clips(delta: float) -> void:
+	var target: Array
+	if _talk > 0.0 and _face_clips.has(_talk_clip):
+		_talk_time += delta
+		target = _sample_clip(_face_clips[_talk_clip], _talk_time)
+	else:
+		_talk_time = 0.0
+		_idle_time += delta
+		target = _sample_clip(_face_clips["Idle_Blink"], _idle_time) if _face_clips.has("Idle_Blink") else []
+	if _face_weights.size() != _face_shapes.size():
+		_face_weights.resize(_face_shapes.size())
+		_face_weights.fill(0.0)
+	var k := clampf(delta / 0.12, 0.0, 1.0)
+	for i in _face_shapes.size():
+		var want: float = target[i] if i < target.size() else 0.0
+		# Blinks pass straight through; the mouth eases between clips.
+		if str(_face_shapes[i]) == "eyeBlink":
+			_face_weights[i] = maxf(want, lerpf(float(_face_weights[i]), want, k))
+		else:
+			_face_weights[i] = lerpf(float(_face_weights[i]), want, k)
+		_set_shape(str(_face_shapes[i]), float(_face_weights[i]))
+
+
+## Weights of a clip at time t (looping), interpolated between keys.
+func _sample_clip(clip: Dictionary, t: float) -> Array:
+	var times: Array = clip["times"]
+	var weights: Array = clip["weights"]
+	if times.is_empty():
+		return []
+	var length: float = times[times.size() - 1]
+	if length > 0.0:
+		t = fmod(t, length)
+	var i := times.bsearch(t)
+	if i <= 0:
+		return weights[0]
+	if i >= times.size():
+		return weights[weights.size() - 1]
+	var t0: float = times[i - 1]
+	var t1: float = times[i]
+	var f := (t - t0) / maxf(t1 - t0, 0.0001)
+	var a: Array = weights[i - 1]
+	var b: Array = weights[i]
+	var out: Array = []
+	for j in a.size():
+		out.append(lerpf(float(a[j]), float(b[j]), f))
+	return out
+
+
+## Face clips saved next to an imported model as <model>.face.json by
+## tools/rig_model_v2.py.
+func _load_face_clips(model_path: String) -> Dictionary:
+	if model_path == "":
+		return {}
+	var f := FileAccess.open(model_path.get_basename() + ".face.json", FileAccess.READ)
+	if f == null:
+		return {}
+	var data = JSON.parse_string(f.get_as_text())
+	if typeof(data) != TYPE_DICTIONARY or not data.has("clips"):
+		return {}
+	_face_shapes = data.get("shapes", [])
+	return data["clips"]
 
 
 func _set_shape(shape_name: String, value: float) -> void:
