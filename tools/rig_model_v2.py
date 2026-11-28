@@ -3,7 +3,7 @@
 keeping the model's own proportions, textures and blend shapes.
 
     python3 tools/rig_model_v2.py assets/models/source/Guard_Talking.glb \\
-        assets/models/guard_talking_rigged.glb
+        assets/models/guard_unarmed_rigged.glb
 
 Writes two files (three when the model has face animations):
   <out>.glb       one node per part named "<joint>__<part>", geometry in that
