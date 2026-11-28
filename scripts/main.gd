@@ -135,13 +135,13 @@ func _use_interior_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.0, 0.0, 0.0)
-	# Very little fill light: away from the fires the castle falls into
-	# near darkness, with a cold tint in the shadows.
+	# Low fill light: away from the fires the castle is dim, with a cold
+	# tint in the shadows, but never black.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	env.ambient_light_color = Color(0.4, 0.42, 0.5)
-	env.ambient_light_energy = 0.09 if GameState.act == 0 else 0.14
+	env.ambient_light_energy = 0.17 if GameState.act == 0 else 0.22
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	env.tonemap_exposure = 1.08
+	env.tonemap_exposure = 1.22
 	env.tonemap_white = 6.0
 	env.glow_enabled = true
 	env.glow_intensity = 0.75
@@ -149,9 +149,9 @@ func _use_interior_environment() -> void:
 	env.glow_hdr_threshold = 1.2
 	env.ssao_enabled = true
 	env.ssao_radius = 1.4
-	env.ssao_intensity = 3.0
-	env.ssao_power = 1.8
-	env.ssao_light_affect = 0.25
+	env.ssao_intensity = 1.6
+	env.ssao_power = 1.3
+	env.ssao_light_affect = 0.0
 	env.ssil_enabled = true
 	env.ssil_intensity = 1.0
 	# Smoky haze: torches glow in the air and the window casts a light shaft.
@@ -160,7 +160,7 @@ func _use_interior_environment() -> void:
 	env.volumetric_fog_albedo = Color(0.62, 0.58, 0.54)
 	env.volumetric_fog_length = 40.0
 	env.adjustment_enabled = true
-	env.adjustment_brightness = 0.96
+	env.adjustment_brightness = 1.0
 	env.adjustment_saturation = 0.88
 	env.adjustment_contrast = 1.14
 	world_env.environment = env

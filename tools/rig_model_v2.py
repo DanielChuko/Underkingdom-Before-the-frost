@@ -162,18 +162,62 @@ def classify(name):
     return "head"
 
 
+def node_matrix(node):
+    if "matrix" in node:
+        return np.array(node["matrix"], dtype=np.float64).reshape(4, 4).T
+    m = np.eye(4)
+    if "scale" in node:
+        m = np.diag(list(node["scale"]) + [1.0]) @ m
+    if "rotation" in node:
+        x, y, z, w = node["rotation"]
+        r = np.array([[1 - 2 * (y * y + z * z), 2 * (x * y - z * w), 2 * (x * z + y * w)],
+                      [2 * (x * y + z * w), 1 - 2 * (x * x + z * z), 2 * (y * z - x * w)],
+                      [2 * (x * z - y * w), 2 * (y * z + x * w), 1 - 2 * (x * x + y * y)]])
+        rm = np.eye(4)
+        rm[:3, :3] = r
+        m = rm @ m
+    if "translation" in node:
+        t = np.eye(4)
+        t[:3, 3] = node["translation"]
+        m = t @ m
+    return m
+
+
+def scene_nodes(j):
+    """(node index, world matrix) for every node in the active scene; nodes left
+    out of the scene (old parts a model keeps but no longer shows) are skipped."""
+    out = []
+    scene = j["scenes"][j.get("scene", 0)] if j.get("scenes") else {"nodes": list(range(len(j["nodes"])))}
+    stack = [(i, np.eye(4)) for i in scene["nodes"]]
+    while stack:
+        i, parent = stack.pop()
+        world = parent @ node_matrix(j["nodes"][i])
+        out.append((i, world))
+        stack += [(c, world) for c in j["nodes"][i].get("children", [])]
+    return out
+
+
 def main(src, dst):
     j, binary = read_glb(src)
     parts = {}
-    for node in j["nodes"]:
+    for index, world in scene_nodes(j):
+        node = j["nodes"][index]
         if "mesh" not in node:
             continue
         mesh = j["mesh" + "es"][node["mesh"]]
         prim = mesh["primitives"][0]
         pos = accessor(j, binary, prim["attributes"]["POSITION"]).astype(np.float64)
+        pos = pos @ world[:3, :3].T + world[:3, 3]
         pos[:, 0] *= -1  # face -Z
         pos[:, 2] *= -1
+        nrm = None
+        if "NORMAL" in prim["attributes"]:
+            nrm = accessor(j, binary, prim["attributes"]["NORMAL"]).astype(np.float64) @ world[:3, :3].T
+            nrm /= np.linalg.norm(nrm, axis=1, keepdims=True) + 1e-12
+            nrm[:, 0] *= -1
+            nrm[:, 2] *= -1
         p = {
+            "nrm": nrm,
             "name": node["name"], "pos": pos, "prim": prim, "mesh": mesh,
             "uv": accessor(j, binary, prim["attributes"]["TEXCOORD_0"]) if "TEXCOORD_0" in prim["attributes"] else None,
             "idx": accessor(j, binary, prim["indices"]).reshape(-1) if "indices" in prim else np.arange(len(pos)),
@@ -256,6 +300,9 @@ def main(src, dst):
                 "material": part["prim"].get("material", 0)}
         if part["uv"] is not None:
             prim["attributes"]["TEXCOORD_0"] = w.add(part["uv"][used], "VEC2")
+        if part["nrm"] is not None:
+            n = part["nrm"][used] @ rot.T if rot is not None else part["nrm"][used]
+            prim["attributes"]["NORMAL"] = w.add(n.astype(np.float32), "VEC3")
         mesh = {"name": name, "primitives": [prim]}
         if part["targets"]:
             prim["targets"] = []

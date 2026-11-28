@@ -25,7 +25,7 @@ const LOOKS_PATH := "res://data/characters.json"
 
 const HIP_HEIGHT := 0.93
 const STRIDE := 1.35  # metres per full walk cycle (two steps)
-const SEAT_HEIGHT := 0.52  # top of the throne's cushion
+const SEAT_HEIGHT := 0.6  # top of the throne's cushion (royal_throne.glb at 80%)
 const SIT_FORWARD := -0.14  # seated, the hips sit this far forward of the seat's centre
 
 ## Average albedo of each generated texture, so a look's colour comes out as
@@ -639,7 +639,8 @@ func _build_shield() -> void:
 	if design == "":
 		return
 	shield = _joint(l_elbow, Vector3(-0.075, -0.13, -0.03))
-	H.shield(shield, Vector3.ZERO, Vector3(-0.72, 0.0, -0.69).normalized(), design, 0.66)
+	# Carried shields are darker and duller than the display ones in the hall.
+	H.shield(shield, Vector3.ZERO, Vector3(-0.72, 0.0, -0.69).normalized(), design, 0.66, Color(0.5, 0.46, 0.43))
 
 
 ## Height and half-width of an imported model's belt, from its belt part

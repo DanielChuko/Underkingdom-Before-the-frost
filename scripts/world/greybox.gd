@@ -102,7 +102,10 @@ static func light(parent: Node, pos: Vector3, color: Color, energy: float, light
 	l.omni_range = light_range
 	l.omni_attenuation = 1.4
 	l.shadow_enabled = shadows
-	l.shadow_bias = 0.05
+	l.shadow_bias = 0.08
+	# Enough normal bias that layered clothing and faces don't shadow
+	# themselves into dark blotches.
+	l.shadow_normal_bias = 2.5
 	l.distance_fade_enabled = true
 	l.distance_fade_begin = 28.0
 	l.distance_fade_length = 8.0
@@ -321,7 +324,9 @@ static func torch(parent: Node, pos: Vector3, facing: Vector3, energy := 2.2, li
 	flame(h, Vector3(0, 0.33, 0), 1.0)
 	# Years of smoke have blackened the stone above the flame.
 	stain(parent, pos + facing * 0.006 + Vector3(0, 1.25, 0), facing, Vector2(0.8, 1.5), _get_soot_material())
-	light(t, Vector3(0, 0.5, 0.45), Color(1.0, 0.68, 0.38), energy, light_range, shadows, 0.2)
+	# Torches burn a little brighter and reach further than the callers ask,
+	# so the halls stay readable between them.
+	light(t, Vector3(0, 0.5, 0.45), Color(1.0, 0.68, 0.38), energy * 1.3, light_range * 1.15, shadows, 0.2)
 	return t
 
 
@@ -379,16 +384,22 @@ static func npc(parent: Node, script: Script, display_name: String, pos: Vector3
 	n.body = body
 	# A soft fill light that only touches the character (render layer 2), so
 	# faces and clothing read in the dark halls without lighting up the walls.
+	# It sits in front at face height (characters face -Z), so the face is
+	# never left in its own shade. The head does not cast shadows, so a helmet
+	# brim or hood can't black out the face under a torch.
 	for g in body.find_children("*", "GeometryInstance3D", true, false):
 		(g as GeometryInstance3D).layers = 1 | CHARACTER_LAYER
+	if body.head:
+		for g in body.head.find_children("*", "GeometryInstance3D", true, false):
+			(g as GeometryInstance3D).cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	var fill := OmniLight3D.new()
 	fill.name = "CharacterLight"
-	fill.position = Vector3(0, 2.3, -0.55)
-	fill.light_color = Color(1.0, 0.86, 0.7)
-	fill.light_energy = 0.9
-	fill.light_specular = 0.25
-	fill.omni_range = 3.2
-	fill.omni_attenuation = 1.2
+	fill.position = Vector3(0.25, 1.75, -1.0)
+	fill.light_color = Color(1.0, 0.87, 0.72)
+	fill.light_energy = 1.3
+	fill.light_specular = 0.2
+	fill.omni_range = 3.6
+	fill.omni_attenuation = 1.0
 	fill.light_cull_mask = CHARACTER_LAYER
 	fill.shadow_enabled = false
 	fill.light_volumetric_fog_energy = 0.0

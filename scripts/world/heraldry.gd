@@ -55,7 +55,9 @@ static func banner(parent: Node, top: Vector3, normal: Vector3, width := 1.4) ->
 
 ## A painted heater shield hung on a wall. `center` is on the wall surface;
 ## normal points out of the wall.
-static func shield(parent: Node, center: Vector3, normal: Vector3, design := "shield_sun_bend", height := 0.75) -> Node3D:
+## tint darkens the painted face (white leaves it as painted), e.g. for a
+## battered shield carried by a guard rather than one hung on display.
+static func shield(parent: Node, center: Vector3, normal: Vector3, design := "shield_sun_bend", height := 0.75, tint := Color.WHITE) -> Node3D:
 	var s := Node3D.new()
 	s.position = center
 	s.rotation.y = atan2(normal.x, normal.z)
@@ -65,7 +67,7 @@ static func shield(parent: Node, center: Vector3, normal: Vector3, design := "sh
 	# Curved face, and a dark backing board behind it so the edge has thickness.
 	var face := MeshInstance3D.new()
 	face.mesh = _sheet(Vector2(width, height), 12, 12, "shield", bow)
-	face.material_override = _material(design, 0.7)
+	face.material_override = _material(design, 0.7) if tint == Color.WHITE else _tinted(design, tint)
 	face.position = Vector3(0, height * 0.5, 0.035)
 	s.add_child(face)
 	var back := MeshInstance3D.new()
@@ -242,6 +244,17 @@ static func _material(texture_name: String, roughness: float) -> StandardMateria
 	m.cull_mode = BaseMaterial3D.CULL_DISABLED
 	m.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	_materials[texture_name] = m
+	return m
+
+
+static func _tinted(texture_name: String, tint: Color) -> StandardMaterial3D:
+	var key := texture_name + "|" + tint.to_html()
+	if _materials.has(key):
+		return _materials[key]
+	var m: StandardMaterial3D = _material(texture_name, 0.8).duplicate()
+	m.albedo_color = tint
+	m.roughness = 0.8
+	_materials[key] = m
 	return m
 
 
