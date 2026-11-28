@@ -6,7 +6,7 @@ extends RefCounted
 const G := preload("res://scripts/world/greybox.gd")
 const S := preload("res://scripts/world/surfaces.gd")
 const F := preload("res://scripts/world/furniture.gd")
-const PROPS := "res://assets/models/props/"
+const M := preload("res://scripts/world/models.gd")
 
 
 static func stone() -> Material:
@@ -78,23 +78,9 @@ static func barrel(parent: Node, pos: Vector3, height := 0.9, open := false) -> 
 	G.solid(parent, Vector3(0.62, height, 0.62), pos + Vector3(0, height * 0.5, 0))
 
 
-## Places one of the supplied prop models from assets/models/props/ (they face
-## +Z and carry no collision). Returns null when the model is missing, so the
-## caller can fall back to a generated stand-in.
+## Places one of the supplied prop models (see models.gd); null if missing.
 static func model(parent: Node, file: String, pos: Vector3, yaw := 0.0, scale := Vector3.ONE) -> Node3D:
-	var path := PROPS + file + ".glb"
-	if not ResourceLoader.exists(path):
-		push_warning("Decor: missing prop model %s" % path)
-		return null
-	var packed = load(path)
-	if not packed is PackedScene:
-		return null
-	var n: Node3D = packed.instantiate()
-	n.position = pos
-	n.rotation.y = yaw
-	n.scale = scale
-	parent.add_child(n)
-	return n
+	return M.place(parent, file, pos, Vector3(0, yaw, 0), scale)
 
 
 ## A woven carpet from the supplied models: "royal" or "worn" runners

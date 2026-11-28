@@ -8,6 +8,7 @@ const DoorScript := preload("res://scripts/world/door.gd")
 const PropScript := preload("res://scripts/world/prop.gd")
 const FlickerScript := preload("res://scripts/world/flicker_light.gd")
 const HumanoidScript := preload("res://scripts/characters/humanoid.gd")
+const PM := preload("res://scripts/world/models.gd")
 
 const WALL_THICKNESS := 0.3
 ## Render layer carrying the characters, lit by their own fill lights.
@@ -506,11 +507,19 @@ static func _door_leaf(door_node, hinge: Vector3, along: Vector3, open_into: Vec
 	var closed := atan2(-along.z, along.x)
 	pivot.rotation.y = closed
 	door_node.add_child(pivot)
-	box(pivot, Vector3(width - 0.04, height, 0.08), Vector3(width * 0.5, height * 0.5, 0), material)
-	# Iron bands and a handle so doors read as doors.
-	box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.25, 0), trim, false)
-	box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.75, 0), trim, false)
-	box(pivot, Vector3(0.06, 0.2, 0.16), Vector3(width - 0.15, height * 0.45, 0), trim, false)
+	# The supplied oak door (single leaves) or gate leaf (wide leaves of
+	# double doors), stretched to the opening, with a collision box.
+	var gate := width > 1.25
+	var native := Vector2(1.8, 3.25) if gate else Vector2(1.05, 2.15)
+	var leaf := PM.place(pivot, "gate_left" if gate else "door_oak", Vector3.ZERO, Vector3.ZERO, Vector3(width / native.x, height / native.y, 0.45 if gate else 0.5))
+	if leaf != null:
+		solid(pivot, Vector3(width - 0.04, height, 0.12), Vector3(width * 0.5, height * 0.5, 0))
+	else:
+		box(pivot, Vector3(width - 0.04, height, 0.08), Vector3(width * 0.5, height * 0.5, 0), material)
+		# Iron bands and a handle so doors read as doors.
+		box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.25, 0), trim, false)
+		box(pivot, Vector3(width - 0.1, 0.08, 0.1), Vector3(width * 0.5, height * 0.75, 0), trim, false)
+		box(pivot, Vector3(0.06, 0.2, 0.16), Vector3(width - 0.15, height * 0.45, 0), trim, false)
 	var plus := closed + PI * 0.5
 	var dir_plus := Vector3(cos(plus), 0.0, -sin(plus))
 	var open := plus if dir_plus.dot(open_into) > 0.0 else closed - PI * 0.5

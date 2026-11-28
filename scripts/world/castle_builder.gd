@@ -330,6 +330,15 @@ func _kitchen() -> void:
 	P.carrot(root, Vector3(5.15, top, -9.0), 0.1)
 	P.jug(root, Vector3(6.55, top, -8.95), Color(0.62, 0.42, 0.3), 2.0)
 	P.bowl(root, Vector3(4.3, top, -8.4), 0.1)
+	# Fish, a raw steak, garlic and a string of sausages waiting to be cooked,
+	# a kitchen knife by the board and a cup for the cook.
+	P.item(root, "fish_whole", Vector3(5.75, top, -8.95), 0.0)
+	P.item(root, "steak_raw", Vector3(6.35, top, -8.5), 0.2)
+	P.item(root, "knife_kitchen", Vector3(5.6, top, -8.25), -0.4)
+	for i in 3:
+		P.item(root, "garlic", Vector3(4.85 + i * 0.07, top, -8.1 - (i % 2) * 0.05))
+	P.item(root, "sausage_link", Vector3(4.6, top, -8.6), 0.15)
+	P.item(root, "cup_clay", Vector3(6.6, top, -8.6))
 
 	# Fireplace on the south wall with a hanging pot.
 	G.box(root, Vector3(0.4, 1.7, 0.8), Vector3(4.6, 0.85, -3.55), stone_dark)
@@ -503,9 +512,22 @@ func _dressing() -> void:
 		for z in [-39.2, -42.0, -44.8]:
 			P.candle_holder(root, Vector3(tx, 0.8, z))
 		P.bowl(root, Vector3(tx, 0.8, -40.6), 0.14)
-		for i in 5:
-			var a := TAU * i / 5.0
-			P.apple(root, Vector3(tx + cos(a) * 0.06, 0.84, -40.6 + sin(a) * 0.06), Color(0.72, 0.1, 0.08) if i % 2 else Color(0.85, 0.6, 0.12))
+		for i in 3:
+			var a := TAU * i / 3.0
+			P.apple(root, Vector3(tx + cos(a) * 0.045, 0.83, -40.6 + sin(a) * 0.045), Color(0.72, 0.1, 0.08) if i % 2 else Color(0.55, 0.65, 0.15))
+		P.item(root, "grapes", Vector3(tx, 0.86, -40.6), 0.4)
+		# Tankards and table knives at the places, plums and a platter of
+		# drumsticks between the candles.
+		for i in 6:
+			var z := -38.5 - i * 1.4
+			P.item(root, "tankard_wood", Vector3(tx - 0.33, 0.8, z + 0.2), PI if i % 2 else 0.0)
+			P.item(root, "knife_table", Vector3(tx - 0.1, 0.8, z - 0.05), PI * 0.5)
+			P.item(root, "knife_table", Vector3(tx + 0.44, 0.8, z + 0.05), PI * 0.5)
+		for i in 3:
+			P.item(root, "plum", Vector3(tx + 0.12 + i * 0.05, 0.8, -41.2 + (i % 2) * 0.04))
+		P.item(root, "plate_ceramic", Vector3(tx, 0.8, -45.3))
+		for i in 3:
+			P.item(root, "chicken_drumstick", Vector3(tx + (i - 1) * 0.06, 0.81 + (i % 2) * 0.02, -45.3), 1.2 + i * 0.5)
 		P.bread(root, Vector3(tx, 0.8, -43.4), 1.57)
 		P.jug(root, Vector3(tx, 0.8, -46.0), Color(0.6, 0.42, 0.3), 0.5)
 	for z in [-41.0, -47.0]:
